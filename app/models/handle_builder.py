@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.architectures.mistral3 import Mistral3TextArchitecture
 from app.architectures.registry import ArchitectureRegistry
 from app.gguf.dequant.torch_dequant import TorchDequantizer
@@ -43,6 +45,9 @@ class HandleBuilder:
         self._settings = settings
         self._cache_store = cache_store
         self._registry = ArchitectureRegistry()
+
+    def gguf_path(self, tag: str) -> Path:
+        return self._catalog.gguf_path_for_tag(tag)
 
     def cache_budget_bytes(self, on_gpu: bool, free_before_load: int, weight_bytes: int) -> int:
         """Prompt-cache budget. On a GPU the cached KV lives in VRAM beside the weights, so it is

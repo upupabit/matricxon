@@ -8,13 +8,13 @@ for what this doesn't cover (unsupported type, `in_features` not a multiple of 2
 
 import ctypes
 import logging
-import os
 import time
 
 import numpy as np
 import torch
 
 from app.native.library import NativeBuildError, NativeKernelLibrary
+from app.runtime.cpu_cores import CpuCores
 
 logger = logging.getLogger(__name__)
 
@@ -61,18 +61,18 @@ class NativeGemm:
         lib.mx_gated_delta_rule.restype = ctypes.c_int
 
     @classmethod
-    def configure(cls, backend: str, n_threads: int | None = None) -> None:
+    def configure(cls, backend: str, n_threads: int | None = None, wide_simd: bool = False) -> None:
         """Called once at startup (app.main.MatricxonApp). A failed build is logged and leaves the
         Numba kernels in charge, never a startup failure."""
         cls._active = None
         if backend != "native":
             return
         try:
-            lib = NativeKernelLibrary().load()
+            lib = NativeKernelLibrary(wide_simd=wide_simd).load()
         except (NativeBuildError, OSError) as exc:
             logger.warning("native kernels unavailable, using numba instead: %s", exc)
             return
-        cls._active = cls(lib, n_threads or os.cpu_count() or 1)
+        cls._active = cls(lib, CpuCores.threads(n_threads))
         logger.info(
             "native quantized kernels enabled: %d threads, %s",
             cls._active._n_threads,

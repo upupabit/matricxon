@@ -138,3 +138,16 @@ def silu_mul(gate, up, out):  # pragma: no cover - jitted
     for i in range(out.shape[0]):
         g = gate[i]
         out[i] = g / (np.float32(1.0) + np.exp(-g)) * up[i]
+
+
+@numba.njit(cache=True, fastmath=True)
+def gelu_tanh_mul(gate, up, out):  # pragma: no cover - jitted
+    k = np.float32(0.7978845608028654)  # sqrt(2 / pi)
+    for i in range(out.shape[0]):
+        g = gate[i]
+        out[i] = (
+            np.float32(0.5)
+            * g
+            * (np.float32(1.0) + np.tanh(k * (g + np.float32(0.044715) * g * g * g)))
+            * up[i]
+        )

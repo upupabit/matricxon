@@ -54,7 +54,9 @@ class RuntimeSettingsApplier:
             logging.getLogger().setLevel(LOG_LEVELS_BY_SETTING[self._settings.log_level])
         if "gemv_backend" in values:
             # Models load their kernels at load time, so loaded ones keep theirs.
-            NativeGemm.configure(self._settings.gemv_backend, self._settings.torch_threads)
+            NativeGemm.configure(
+                self._settings.gemv_backend, self._settings.torch_threads, self._settings.wide_simd
+            )
             FusedOps.configure(self._settings.enable_fused_ops)
 
         next_load = {*_MANAGER_NEXT_LOAD, "gemv_backend"}

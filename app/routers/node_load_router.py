@@ -1,11 +1,10 @@
-import os
-
 from fastapi import APIRouter, Depends
 
 from app.config import settings
 from app.dependencies import get_model_manager
 from app.models.load_dtype import available_memory_bytes
 from app.models.manager import ModelManager
+from app.runtime.cpu_cores import CpuCores
 from app.schemas.node_load import LoadedModelLoad, NodeLoadResponse
 
 router = APIRouter()
@@ -26,7 +25,7 @@ class NodeLoadHandler:
         return NodeLoadResponse(
             active=sum(m.active for m in models),
             models=models,
-            threads=settings.torch_threads or os.cpu_count() or 1,
+            threads=CpuCores.threads(settings.torch_threads),
             free_memory_bytes=available_memory_bytes(),
             node_kind=settings.node_kind,
         )

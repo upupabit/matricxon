@@ -21,6 +21,19 @@
 #if defined(__SSSE3__)
 #include <tmmintrin.h>
 #endif
+/* MX_WIDE_SIMD (Settings.wide_simd, EXPERIMENTAL, untested on real hardware yet): wider integer dot
+ * products where -march/-mcpu=native allows them; same integer results as the SSSE3/C paths. */
+#if defined(MX_WIDE_SIMD) && defined(__AVX2__)
+#include <immintrin.h>
+#define MX_WIDE_AVX2 1
+#elif defined(MX_WIDE_SIMD) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
+#include <arm_neon.h>
+#define MX_WIDE_NEON_DOT 1
+#endif
+
+/* Rows per chunk in the row loops: idle threads take the next chunk, so one thread the OS preempts
+ * (other programs on the machine) no longer stalls the whole multiply, as a static split did. */
+#define MX_ROW_CHUNK 16
 
 #define MX_QK_K 256
 #define MX_QK8_0 32
@@ -152,9 +165,41 @@ static inline int32_t mx_hsum_epi32(__m128i v) {
 }
 #endif
 
-/* sum_s sc[s] * sum_l u[16s+l] * q[16s+l] over one 256-value block. */
+/* sum_s sc[s] * sum_l u[16s+l] * q[16s+l] over one 256-value block. u is unsigned and below 128
+ * (unpacked K-quant values: at most 63), so it also fits a signed byte (NEON's signed dot). */
 static inline int32_t mx_dot_u8_sc16(const uint8_t *u, const int8_t *q, const int16_t *sc) {
-#if defined(__SSSE3__)
+#if defined(MX_WIDE_AVX2)
+    /* Two 16-value sub-blocks per 32-byte register: the low lane is sub-block s, the high s+1. */
+    __m256i acc = _mm256_setzero_si256();
+    for (int s = 0; s < MX_QK_K / 16; s += 2) {
+        const __m256i a = _mm256_loadu_si256((const __m256i *)(u + 16 * s));
+        const __m256i b = _mm256_loadu_si256((const __m256i *)(q + 16 * s));
+#if defined(__AVXVNNI__) || (defined(__AVX512VNNI__) && defined(__AVX512VL__))
+        /* VNNI: four u8*s8 products summed into each int32 in one instruction. */
+#if defined(__AVXVNNI__)
+        const __m256i sums = _mm256_dpbusd_avx_epi32(_mm256_setzero_si256(), a, b);
+#else
+        const __m256i sums = _mm256_dpbusd_epi32(_mm256_setzero_si256(), a, b);
+#endif
+        const __m256i scale = _mm256_set_m128i(_mm_set1_epi32(sc[s + 1]), _mm_set1_epi32(sc[s]));
+        acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(sums, scale));
+#else
+        const __m256i pairs = _mm256_maddubs_epi16(a, b);
+        const __m256i scale = _mm256_set_m128i(_mm_set1_epi16(sc[s + 1]), _mm_set1_epi16(sc[s]));
+        acc = _mm256_add_epi32(acc, _mm256_madd_epi16(pairs, scale));
+#endif
+    }
+    const __m128i half = _mm_add_epi32(_mm256_castsi256_si128(acc), _mm256_extracti128_si256(acc, 1));
+    return mx_hsum_epi32(half);
+#elif defined(MX_WIDE_NEON_DOT)
+    int32_t total = 0;
+    for (int s = 0; s < MX_QK_K / 16; ++s) {
+        const int8x16_t a = vreinterpretq_s8_u8(vld1q_u8(u + 16 * s));
+        const int32x4_t d = vdotq_s32(vdupq_n_s32(0), a, vld1q_s8(q + 16 * s));
+        total += sc[s] * vaddvq_s32(d);
+    }
+    return total;
+#elif defined(__SSSE3__)
     __m128i acc = _mm_setzero_si128();
     for (int s = 0; s < MX_QK_K / 16; ++s) {
         const __m128i a = _mm_loadu_si128((const __m128i *)(u + 16 * s));

@@ -6,44 +6,13 @@ import torch.nn.functional as F
 from torch import nn
 
 from app.architectures.fused_attention import fused_cached_attention
+from app.architectures.gemma4_ops import _causal_mask, gelu_tanh_mul, rms_norm_no_scale
 from app.architectures.layers import RMSNorm
 from app.architectures.rope import apply_rotary_pos_emb
 from app.architectures.shared_projection import project_shared
 from app.runtime.kv_cache import KVCache
 
 logger = logging.getLogger(__name__)
-
-
-def _causal_mask(
-    q_len: int,
-    kv_len: int,
-    cache_offset: int,
-    window: int | None,
-    device: torch.device | None = None,
-) -> torch.Tensor:
-    """Same causal rule as Mistral3DecoderLayer's `_causal_mask`, plus an optional sliding window:
-    query i attends to
-    key j iff `j <= i + cache_offset` (causal) and, if `window` is set, `j > i + cache_offset -
-    window` (Gemma4's local layers).
-    """
-    q_idx = torch.arange(q_len, device=device).unsqueeze(1)
-    kv_idx = torch.arange(kv_len, device=device).unsqueeze(0)
-    causal = kv_idx <= (q_idx + cache_offset)
-    if window is None:
-        return causal
-    return causal & (kv_idx > (q_idx + cache_offset - window))
-
-
-def rms_norm_no_scale(x: torch.Tensor, eps: float) -> torch.Tensor:
-    """Gemma4's `v_norm`: an active step with no learnable weight (`with_scale=False` in HF
-    `Gemma4RMSNorm`; no
-    `attn_v_norm.weight` in the GGUF), so a plain function rather than a module with nothing to
-    load.
-    """
-    input_dtype = x.dtype
-    x = x.to(torch.float32)
-    variance = x.pow(2).mean(dim=-1, keepdim=True)
-    return (x * torch.rsqrt(variance + eps)).to(input_dtype)
 
 
 class Gemma4MLP(nn.Module):
@@ -60,7 +29,7 @@ class Gemma4MLP(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         gate, up = project_shared(self, ("gate_proj", "up_proj"), x)
-        return self.down_proj(F.gelu(gate, approximate="tanh") * up)
+        return self.down_proj(gelu_tanh_mul(gate, up))
 
 
 class Gemma4Attention(nn.Module):
@@ -253,8 +222,7 @@ class Gemma4DecoderLayer(nn.Module):
 
         if self.per_layer_dim:
             residual = x
-            hidden = F.gelu(self.per_layer_input_gate(x), approximate="tanh")
-            hidden = hidden * per_layer_input
+            hidden = gelu_tanh_mul(self.per_layer_input_gate(x), per_layer_input)
             hidden = self.per_layer_projection(hidden)
             hidden = self.post_per_layer_input_norm(hidden)
             x = residual + hidden

@@ -91,7 +91,7 @@ int mx_dequant_rows(int ggml_type, const uint8_t *w, const int32_t *row_indices,
 #pragma omp atomic write
             status = -2;
         }
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic, MX_ROW_CHUNK)
         for (int r = 0; r < n_rows; ++r) {
             if (wu == NULL) {
                 continue;

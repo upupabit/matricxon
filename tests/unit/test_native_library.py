@@ -90,3 +90,25 @@ def test_every_variant_failing_reports_each_one(tmp_path) -> None:
     with pytest.raises(NativeBuildError, match=r"\[first\][\s\S]*\[second\]"):
         library.build()
     assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_wide_simd_adds_its_flag_and_builds_a_separate_library(tmp_path) -> None:
+    plain = CompilerFlags(system="Linux", machine="x86_64").variants()
+    wide = CompilerFlags(system="Linux", machine="x86_64", wide_simd=True).variants()
+    assert all("-DMX_WIDE_SIMD" not in v.flags for v in plain)
+    assert all("-DMX_WIDE_SIMD" in v.flags for v in wide)
+    plain_lib = NativeKernelLibrary(build_dir=tmp_path).library_path
+    wide_lib = NativeKernelLibrary(build_dir=tmp_path, wide_simd=True).library_path
+    assert (
+        plain_lib.name == "libmatricxon_kernels.so"
+        and wide_lib.name == "libmatricxon_kernels_wide.so"
+    )
+
+
+@pytest.mark.skipif(shutil.which("gcc") is None, reason="needs gcc")
+def test_the_wide_build_compiles_and_runs_here(tmp_path) -> None:
+    """On a CPU without AVX2/NEON dot product the wide build falls back to the same SSSE3/C code."""
+    import ctypes
+
+    lib = ctypes.CDLL(str(NativeKernelLibrary(build_dir=tmp_path, wide_simd=True).load()._name))
+    assert lib.mx_supports(12, 256) == 1  # Q4_K

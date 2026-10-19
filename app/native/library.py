@@ -35,15 +35,21 @@ class NativeKernelLibrary:
         build_dir: Path = _NATIVE_DIR / "build",
         compiler: str | None = None,
         flags: CompilerFlags | None = None,
+        wide_simd: bool = False,
     ) -> None:
         self._source_dir = source_dir
         self._build_dir = build_dir
-        self._flags = flags or CompilerFlags()
+        self._wide_simd = wide_simd
+        self._flags = flags or CompilerFlags(wide_simd=wide_simd)
         self._compiler = compiler or os.environ.get("CC", self._flags.default_compiler())
 
     @property
     def library_path(self) -> Path:
-        return self._build_dir / self.LIBRARY_NAME
+        """A separate file for the wide-SIMD build (Settings.wide_simd), so switching rebuilds."""
+        name = (
+            self.LIBRARY_NAME.replace(".so", "_wide.so") if self._wide_simd else self.LIBRARY_NAME
+        )
+        return self._build_dir / name
 
     def _sources(self) -> list[Path]:
         return sorted(self._source_dir.glob("*.c"))

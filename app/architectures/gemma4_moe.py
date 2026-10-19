@@ -30,7 +30,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from app.architectures.gemma4_layers import rms_norm_no_scale
+from app.architectures.gemma4_ops import rms_norm_no_scale
 from app.architectures.layers import RMSNorm
 from app.architectures.moe_experts import QuantizedMoEExperts, materialize_quantized_moe_experts
 from app.gguf.loader import GGUFModelLoader

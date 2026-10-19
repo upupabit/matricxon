@@ -29,7 +29,7 @@ int mx_attention(const float *q, const float *k, const float *v, float *out, int
 #pragma omp atomic write
             failed = 1;
         }
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic, 1)
         for (int pair = 0; pair < n_pairs; ++pair) {
             if (scores == NULL) continue;
             int h = pair / n_q, t = pair % n_q;

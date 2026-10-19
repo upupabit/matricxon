@@ -103,3 +103,29 @@ def test_silu_mul_matches_torch(lib, backend: str) -> None:
     gate, up = torch.randn(1, 1, 3000) * 4, torch.randn(1, 1, 3000)
     assert torch.allclose(ops.silu_mul(gate, up), F.silu(gate) * up, atol=1e-5, rtol=1e-5)
     assert ops.silu_mul(gate.double(), up.double()) is None
+
+
+@pytest.mark.parametrize("backend", ["native", "numba"])
+def test_gelu_tanh_mul_matches_torch(lib, backend: str) -> None:
+    ops = FusedOps(_NativeBackend(lib, 2) if backend == "native" else _NumbaBackend())
+    gate, up = torch.randn(1, 1, 3000) * 4, torch.randn(1, 1, 3000)
+    expected = F.gelu(gate, approximate="tanh") * up
+    assert torch.allclose(ops.gelu_tanh_mul(gate, up), expected, atol=1e-5, rtol=1e-4)
+    assert ops.gelu_tanh_mul(gate.double(), up.double()) is None
+
+
+@pytest.mark.parametrize("backend", ["native", "numba"])
+def test_gemma_helpers_match_their_torch_versions(lib, backend: str, monkeypatch) -> None:
+    from app.architectures import gemma4_ops
+
+    monkeypatch.setattr(
+        FusedOps,
+        "_active",
+        FusedOps(_NativeBackend(lib, 2) if backend == "native" else _NumbaBackend()),
+    )
+    x = torch.randn(1, 1, 8, 256) * 3
+    plain = x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + 1e-6)
+    assert torch.allclose(gemma4_ops.rms_norm_no_scale(x, 1e-6), plain, atol=1e-5, rtol=1e-5)
+    gate, up = torch.randn(1, 1, 256), torch.randn(1, 1, 256)
+    expected = F.gelu(gate, approximate="tanh") * up
+    assert torch.allclose(gemma4_ops.gelu_tanh_mul(gate, up), expected, atol=1e-5, rtol=1e-4)

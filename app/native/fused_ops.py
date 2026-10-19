@@ -51,6 +51,7 @@ class _NativeBackend:
         ]
         lib.mx_sample.restype = c_int
         lib.mx_silu_mul.argtypes = [f32p, f32p, f32p, c_int]
+        lib.mx_gelu_tanh_mul.argtypes = [f32p, f32p, f32p, c_int]
 
     def rms_norm(self, x: torch.Tensor, w: torch.Tensor, out: torch.Tensor, eps: float) -> None:
         self._lib.mx_rms_norm(_ptr(x), _ptr(w), _ptr(out), x.shape[0], x.shape[1], eps)
@@ -75,6 +76,9 @@ class _NativeBackend:
 
     def silu_mul(self, gate: torch.Tensor, up: torch.Tensor, out: torch.Tensor) -> None:
         self._lib.mx_silu_mul(_ptr(gate), _ptr(up), _ptr(out), out.numel())
+
+    def gelu_tanh_mul(self, gate: torch.Tensor, up: torch.Tensor, out: torch.Tensor) -> None:
+        self._lib.mx_gelu_tanh_mul(_ptr(gate), _ptr(up), _ptr(out), out.numel())
 
     def sample(self, logits, ids, penalty, temperature, top_k, top_p, u) -> int:
         token = self._lib.mx_sample(
@@ -112,6 +116,10 @@ class _NumbaBackend:
     @staticmethod
     def silu_mul(gate, up, out) -> None:
         numba_ops.silu_mul(gate.numpy(), up.numpy(), out.numpy())
+
+    @staticmethod
+    def gelu_tanh_mul(gate, up, out) -> None:
+        numba_ops.gelu_tanh_mul(gate.numpy(), up.numpy(), out.numpy())
 
     @staticmethod
     def sample(logits, ids, penalty, temperature, top_k, top_p, u) -> int:
@@ -204,6 +212,15 @@ class FusedOps:
         gate, up = gate.contiguous(), up.contiguous()
         out = torch.empty_like(gate)
         self._backend.silu_mul(gate.reshape(-1), up.reshape(-1), out.reshape(-1))
+        return out
+
+    def gelu_tanh_mul(self, gate: torch.Tensor, up: torch.Tensor) -> torch.Tensor | None:
+        """gelu_tanh(gate) * up for a few tokens (decode): Gemma's GeGLU in one pass."""
+        if not _is_f32_cpu(gate, up) or gate.shape != up.shape or gate.numel() > 65536:
+            return None
+        gate, up = gate.contiguous(), up.contiguous()
+        out = torch.empty_like(gate)
+        self._backend.gelu_tanh_mul(gate.reshape(-1), up.reshape(-1), out.reshape(-1))
         return out
 
     @staticmethod

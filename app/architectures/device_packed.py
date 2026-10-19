@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from app.architectures.triton_gemv import TritonGemv
 from app.gguf.dequant.torch_dequant import TorchDequantizer
 
 # Rows are dequantized in slices of at most this many elements, so a huge tensor (a 248k-row
@@ -51,6 +52,9 @@ class DevicePackedLinear(nn.Module):
         return values.reshape(packed_rows.shape[0], self.in_features).to(self._dtype)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if TritonGemv.applies(self._ggml_type, x):  # decode: one fused pass over the packed bytes
+            y = TritonGemv.matmul(self.packed, self._ggml_type, x).to(self._dtype)
+            return y if self.bias is None else y + self.bias
         x = x.to(self._dtype)
         step = max(1, _CHUNK_ELEMENTS // self.in_features)
         if step >= self.out_features:

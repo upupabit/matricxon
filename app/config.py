@@ -121,6 +121,12 @@ class Settings(BaseSettings):
     # a C
     # compiler.
     gemv_backend: Literal["numba", "native"] = "native"
+    # EXPERIMENTAL, untested on real hardware yet: wider integer SIMD in the native kernels where
+    # the CPU has it (AVX2, AVX-VNNI/AVX-512 VNNI, ARM NEON dot product). Off: SSSE3 or plain C.
+    wide_simd: bool = False
+    # EXPERIMENTAL, untested on a real GPU yet: fused Triton kernels for packed Q8_0/Q4_K weights at
+    # decode (gpu_weight_mode "packed"; app/architectures/triton_gemv.py).
+    gpu_fused_kernels: bool = False
 
     # One native call instead of several torch dispatches for per-layer RMSNorm, rotary embedding,
     # decode

@@ -9,6 +9,7 @@ from app.models.handle_builder import HandleBuilder
 from app.models.load_dtype import MEMORY_SAFETY_MARGIN
 from app.models.load_settings import LoadSettings
 from app.models.loaded_models import LoadedModels
+from app.models.weight_prefetch import WeightPrefetch
 from app.runtime.cache_store import PersistentCacheStore
 from app.runtime.compute_device import ComputeDevice
 from app.runtime.memory_trim import memory_trimmer
@@ -93,6 +94,7 @@ class ModelManager:
 
         handle = self._loaded.get(tag)
         if handle is not None:
+            WeightPrefetch.after_idle(self._builder.gguf_path(tag), now - handle.last_used_at)
             handle.touch(now, keep_alive_seconds)
             return handle
 
@@ -103,6 +105,7 @@ class ModelManager:
         # attempt for this tag.
         self._cancelled_loads.discard(tag)
         handle = self._load(tag, keep_alive_seconds, now)
+        WeightPrefetch.start(self._builder.gguf_path(tag))  # weights load lazily: read ahead
         handle.worker.on_job_done = lambda: handle.touch(self._clock())
         self._loaded.add(handle)
         # Loading leaves large temporary buffers behind.

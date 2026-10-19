@@ -133,7 +133,7 @@ int mx_gemm(int ggml_type, const uint8_t *w, const float *x, float *y, int n_tok
     /* IQ4_NL/IQ4_XS/TQ1_0/TQ2_0: no mx_block_q8_k; dot_f32 reads the raw activation row (see mx_common.h). */
     if (k.dot_f32 != NULL) {
         const int nb_f32 = in_features / k.block_size;
-#pragma omp parallel for schedule(static) num_threads(n_threads)
+#pragma omp parallel for schedule(dynamic, MX_ROW_CHUNK) num_threads(n_threads)
         for (int o = 0; o < out_features; ++o) {
             const uint8_t *row = w + (size_t)o * k.row_bytes;
             for (int t = 0; t < n_tokens; ++t) {
@@ -158,7 +158,7 @@ int mx_gemm(int ggml_type, const uint8_t *w, const float *x, float *y, int n_tok
     int status = 0;
     const mx_vec_dot_fn dot = mx_row_dot(&k, n_tokens);
     if (dot != NULL) {
-#pragma omp parallel for schedule(static) num_threads(n_threads)
+#pragma omp parallel for schedule(dynamic, MX_ROW_CHUNK) num_threads(n_threads)
         for (int o = 0; o < out_features; ++o) {
             const uint8_t *row = w + (size_t)o * k.row_bytes;
             for (int t = 0; t < n_tokens; ++t) {
@@ -174,7 +174,7 @@ int mx_gemm(int ggml_type, const uint8_t *w, const float *x, float *y, int n_tok
 #pragma omp atomic write
                 status = -2;
             }
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic, MX_ROW_CHUNK)
             for (int o = 0; o < out_features; ++o) {
                 if (wu == NULL) {
                     continue;

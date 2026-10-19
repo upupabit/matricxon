@@ -5,12 +5,14 @@ from app.main import MatricxonApp
 
 
 class TestMatricxonAppTorchThreads:
-    def test_defaults_to_cpu_count_on_cpu_device(self, monkeypatch) -> None:
+    def test_defaults_to_logical_cpus_on_cpu_device(self, monkeypatch) -> None:
+        from app.runtime.cpu_cores import CpuCores
+
         original = torch.get_num_threads()
         try:
             monkeypatch.setattr(config.settings, "device", "cpu")
             monkeypatch.setattr(config.settings, "torch_threads", None)
-            monkeypatch.setattr("os.cpu_count", lambda: 7)
+            monkeypatch.setattr(CpuCores, "logical", staticmethod(lambda: 7))
 
             MatricxonApp()
 

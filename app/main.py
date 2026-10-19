@@ -8,6 +8,7 @@ from pathlib import Path
 import torch
 from fastapi import FastAPI
 
+from app.architectures.triton_gemv import TritonGemv
 from app.config import settings
 from app.consensus.events import ClusterEvents, enable_always_on
 from app.dependencies import (
@@ -44,6 +45,7 @@ from app.routers import (
     version_router,
 )
 from app.runtime.compute_device import ComputeDevice
+from app.runtime.cpu_cores import CpuCores
 from app.server.errors import DeviceUnavailableError, ErrorHandlerRegistrar
 from app.server.log_filters import LOG_LEVELS_BY_SETTING, quiet_cluster_logging
 from app.server.pidfile import PidFile
@@ -98,7 +100,7 @@ class MatricxonApp:
         # leaving half the CPU idle in every matmul of the hot path); explicit beats implicit. See
         # Settings.torch_threads; irrelevant on a non-CPU device.
         if settings.device == "cpu":
-            torch.set_num_threads(settings.torch_threads or os.cpu_count() or 1)
+            torch.set_num_threads(CpuCores.threads(settings.torch_threads))
         # The target hardware (Sandy Bridge) lacks the instruction set NNPACK needs
         # (torch.backends.nnpack.is_available is False, like cpu_accelerates_bf16's
         # avx512_bf16/amx_bf16 check). By default every Conv1d (nemotron_h's SSM causal conv,
@@ -108,8 +110,9 @@ class MatricxonApp:
         # non-NNPACK fallback, checked on the same shapes.
         torch.backends.nnpack.set_flags(False)
         # See Settings.gemv_backend: a no-op unless "native"; a failed build only logs a warning.
-        NativeGemm.configure(settings.gemv_backend, settings.torch_threads)
+        NativeGemm.configure(settings.gemv_backend, settings.torch_threads, settings.wide_simd)
         FusedOps.configure(settings.enable_fused_ops)
+        TritonGemv.enabled = settings.gpu_fused_kernels
 
     @asynccontextmanager
     async def _lifespan(self, _app: FastAPI) -> AsyncIterator[None]:

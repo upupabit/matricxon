@@ -27,9 +27,12 @@ class BuildVariant:
 
 
 class CompilerFlags:
-    def __init__(self, system: str | None = None, machine: str | None = None) -> None:
+    def __init__(
+        self, system: str | None = None, machine: str | None = None, wide_simd: bool = False
+    ) -> None:
         self._system = system or platform.system()
         self._machine = (machine or platform.machine()).lower()
+        self._wide_simd = wide_simd
 
     def default_compiler(self) -> str:
         """`cc` on macOS (always present with the Xcode command line tools), `gcc` elsewhere."""
@@ -46,7 +49,7 @@ class CompilerFlags:
 
     def variants(self) -> list[BuildVariant]:
         """Build variants to try, best first."""
-        flags = _BASE + self._arch_flags()
+        flags = _BASE + self._arch_flags() + (("-DMX_WIDE_SIMD",) if self._wide_simd else ())
         result = []
         if self._system == "Darwin":
             prefix = self._libomp_prefix()

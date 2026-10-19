@@ -1,4 +1,4 @@
-/* Small per-layer ops (RMSNorm, rotary embedding, SwiGLU silu*up) that cost more in PyTorch dispatch than arithmetic during a one-token decode. float32, contiguous unless a stride says otherwise. Numba twins: app/native/fused_ops_numba.py (keep in sync); the PyTorch originals: layers.py RMSNorm, rope.py apply_rotary_pos_emb. Single-threaded: OpenMP fork/join would cost more than a few thousand floats. */
+/* Small per-layer ops (RMSNorm, rotary embedding, SwiGLU silu*up, GeGLU gelu_tanh*up) that cost more in PyTorch dispatch than arithmetic during a one-token decode. float32, contiguous unless a stride says otherwise. Numba twins: app/native/fused_ops_numba.py (keep in sync); the PyTorch originals: layers.py RMSNorm, rope.py apply_rotary_pos_emb. Single-threaded: OpenMP fork/join would cost more than a few thousand floats. */
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -38,5 +38,14 @@ void mx_silu_mul(const float *gate, const float *up, float *out, int n) {
     for (int i = 0; i < n; ++i) {
         const float g = gate[i];
         out[i] = g / (1.0f + expf(-g)) * up[i];
+    }
+}
+
+/* GeGLU's middle step (Gemma): out = gelu_tanh(gate) * up, elementwise; torch's gelu(approximate="tanh"). */
+void mx_gelu_tanh_mul(const float *gate, const float *up, float *out, int n) {
+    const float k = 0.7978845608028654f; /* sqrt(2 / pi) */
+    for (int i = 0; i < n; ++i) {
+        const float g = gate[i];
+        out[i] = 0.5f * g * (1.0f + tanhf(k * (g + 0.044715f * g * g * g))) * up[i];
     }
 }

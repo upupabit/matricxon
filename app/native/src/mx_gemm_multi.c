@@ -42,7 +42,7 @@ int mx_gemm_multi(int n, const int *types, const uint8_t *const *ws, const int *
         }
     }
 
-#pragma omp parallel for schedule(static) num_threads(n_threads)
+#pragma omp parallel for schedule(dynamic, MX_ROW_CHUNK) num_threads(n_threads)
     for (int r = 0; r < total; ++r) {
         int i = 0;
         while (r >= start[i + 1]) {
