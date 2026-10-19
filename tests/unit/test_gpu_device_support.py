@@ -176,10 +176,10 @@ class TestPackedModeThroughTheManager:
 class TestPromptCacheBudgetOnVram:
     def test_cpu_keeps_the_setting_and_gpu_is_capped_by_free_vram(self, tmp_path: Path) -> None:
         manager = ModelManager(ModelCatalog(tmp_path), prompt_cache_budget_mb=2048)
-        assert manager._cache_budget_bytes(False, 0, 0) == 2048 << 20
+        assert manager._builder.cache_budget_bytes(False, 0, 0) == 2048 << 20
         # 10 GB free, 8 GB of weights -> half of the 2 GB left (1 GB), below the 2 GB setting
-        assert manager._cache_budget_bytes(True, 10 << 30, 8 << 30) == 1 << 30
-        assert manager._cache_budget_bytes(True, 1 << 30, 8 << 30) == 0
+        assert manager._builder.cache_budget_bytes(True, 10 << 30, 8 << 30) == 1 << 30
+        assert manager._builder.cache_budget_bytes(True, 1 << 30, 8 << 30) == 0
 
 
 class TestStartupDeviceCheck:

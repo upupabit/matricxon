@@ -60,12 +60,12 @@ class TestModelManagerSetLimits:
     def test_none_keeps_a_value(self, manager: ModelManager) -> None:
         manager.set_limits(max_decode_batch=5)
         manager.set_limits(max_loaded=4)
-        assert manager._max_decode_batch == 5 and manager._max_loaded == 4
+        assert manager.settings.max_decode_batch == 5 and manager.settings.max_loaded == 4
 
     def test_load_time_choices_are_stored_for_the_next_load(self, manager: ModelManager) -> None:
         manager.set_limits(enable_quantized_native_compute=True, gpu_weight_mode="packed")
-        assert manager._enable_quantized_native_compute is True
-        assert manager._gpu_weight_mode == "packed"
+        assert manager.settings.enable_quantized_native_compute is True
+        assert manager.settings.gpu_weight_mode == "packed"
 
 
 def test_prompt_cache_set_limits_evicts_down_to_the_new_count(llama) -> None:  # noqa: F811

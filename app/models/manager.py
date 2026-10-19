@@ -3,34 +3,15 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable
 
-from app.architectures.mistral3 import Mistral3TextArchitecture
-from app.architectures.registry import ArchitectureRegistry
-from app.gguf.dequant.torch_dequant import TorchDequantizer
-from app.gguf.loader import GGUFModelLoader
-from app.gguf.reader import GGUFReader
 from app.models.catalog import ModelCatalog
 from app.models.handle import ModelHandle
-from app.models.load_dtype import (
-    MEMORY_SAFETY_MARGIN,
-    QUANTIZED_NATIVE_WIRED_ARCHITECTURES,
-    estimate_quantized_native_bytes,
-    exact_bf16_bytes,
-    plan_mixed_precision_load,
-    select_load_dtype,
-)
-from app.models.memory_guard import ensure_enough_memory_to_load
-from app.models.tokenizer_dispatch import build_tokenizer
-from app.models.worker import ModelWorker
-from app.runtime.batch_decode import BatchDecoder
+from app.models.handle_builder import HandleBuilder
+from app.models.load_dtype import MEMORY_SAFETY_MARGIN
+from app.models.load_settings import LoadSettings
+from app.models.loaded_models import LoadedModels
 from app.runtime.cache_store import PersistentCacheStore
-from app.runtime.cache_tier import ModelCacheTier
-from app.runtime.chat_stop_tokens import extra_eos_token_ids
-from app.runtime.chat_template import PromptBuilderFactory
 from app.runtime.compute_device import ComputeDevice
 from app.runtime.memory_trim import memory_trimmer
-from app.runtime.prompt_cache import PromptCache
-from app.runtime.tool_call_formats import ToolCallFormats
-from app.server.errors import DeviceUnavailableError
 
 # How many not-yet-started cancelled reply ids to remember (ModelManager.cancel_request).
 _MAX_REMEMBERED_CANCELS = 1024
@@ -51,7 +32,8 @@ class ModelManager:
     3.85B-param model) but is far slower on a CPU without native bf16, and float32 doesn't help if
     it thrashes swap.
 
-    `clock` is injectable so eviction/expiry logic is testable with a fake clock.
+    `clock` is injectable so eviction/expiry logic is testable with a fake clock. Loading one
+    model is HandleBuilder's job; keeping and evicting them is LoadedModels'.
     """
 
     def __init__(
@@ -73,25 +55,22 @@ class ModelManager:
     ) -> None:
         # Raises DeviceUnavailableError for a missing GPU (never a silent CPU fallback).
         self._device = ComputeDevice.resolve(device)
-        self._gpu_weight_mode = gpu_weight_mode
         self._cache_store = cache_store
-        self._catalog = catalog
-        self._max_loaded = max_loaded
-        self._default_keep_alive_seconds = default_keep_alive_seconds
-        self._memory_safety_margin = memory_safety_margin
-        # Off by default (Settings.enable_mixed_precision_loading: the end-to-end
-        # finding, measured slower on the target hardware).
-        self._enable_mixed_precision_loading = enable_mixed_precision_loading
-        # Off by default (Settings.enable_quantized_native_compute). A permanent user choice
-        # , not a rollout toggle.
-        self._enable_quantized_native_compute = enable_quantized_native_compute
+        self.settings = LoadSettings(
+            max_loaded=max_loaded,
+            default_keep_alive_seconds=default_keep_alive_seconds,
+            memory_safety_margin=memory_safety_margin,
+            enable_mixed_precision_loading=enable_mixed_precision_loading,
+            enable_quantized_native_compute=enable_quantized_native_compute,
+            prompt_cache_slots=prompt_cache_slots,
+            prompt_cache_context_shift=prompt_cache_context_shift,
+            prompt_cache_budget_bytes=prompt_cache_budget_mb << 20,
+            max_decode_batch=max_decode_batch,
+            gpu_weight_mode=gpu_weight_mode,
+        )
+        self._builder = HandleBuilder(catalog, self._device, self.settings, cache_store)
         self._clock = clock
-        self._prompt_cache_slots = prompt_cache_slots
-        self._prompt_cache_context_shift = prompt_cache_context_shift
-        self._prompt_cache_budget_bytes = prompt_cache_budget_mb << 20
-        self._max_decode_batch = max_decode_batch
-        self._handles: dict[str, ModelHandle] = {}
-        self._registry = ArchitectureRegistry()
+        self._loaded = LoadedModels()
         # Tags stop-requested while they had no handle yet (unload says why that is common, not a
         # stray call): on the slow-CPU target loading takes tens of seconds, and a caller can ask to
         # stop well before it finishes.
@@ -110,22 +89,22 @@ class ModelManager:
 
     def _get_or_load(self, tag: str, keep_alive_seconds: int | None) -> ModelHandle:
         now = self._clock()
-        self._evict_expired(now)
+        self._loaded.evict_expired(now)
 
-        handle = self._handles.get(tag)
+        handle = self._loaded.get(tag)
         if handle is not None:
             handle.touch(now, keep_alive_seconds)
             return handle
 
-        if len(self._handles) >= self._max_loaded:
-            self._evict_least_recently_used()
+        if len(self._loaded) >= self.settings.max_loaded:
+            self._loaded.evict_least_recently_used(self.settings.max_loaded)
 
         # A fresh load starts clean: a leftover cancellation flag belongs to a previous finished
         # attempt for this tag.
         self._cancelled_loads.discard(tag)
         handle = self._load(tag, keep_alive_seconds, now)
         handle.worker.on_job_done = lambda: handle.touch(self._clock())
-        self._handles[tag] = handle
+        self._loaded.add(handle)
         # Loading leaves large temporary buffers behind.
         memory_trimmer.schedule()
         return handle
@@ -135,7 +114,7 @@ class ModelManager:
         users' replies and caches are untouched. If the reply isn't on a worker yet (still loading
         the model, or between router and worker) the id is remembered, so `pop_cancelled_request`
         can drop it when it would start. See `ModelWorker.cancel_job`."""
-        handle = self._handles.get(tag)
+        handle = self._loaded.get(tag)
         if handle is not None and handle.worker.cancel_job(request_id):
             return
         self._cancelled_requests[request_id] = None
@@ -177,21 +156,13 @@ class ModelManager:
         Recording the stop lets that load notice, when it finishes, that nobody wants the
         generation.
         """
-        handle = self._handles.pop(tag, None)
+        handle = self._loaded.pop(tag)
         if handle is not None:
             handle.worker.request_stop()
             handle.worker.wait_until_idle()
-            self._retire(handle)
+            LoadedModels.retire(handle, "unload request")
         else:
             self._cancelled_loads.add(tag)
-
-    def _retire(self, handle: ModelHandle) -> None:
-        """Drops a handle for good: its idle cached conversations go to the disk tier first (a
-        background write; the slots are independent of the weights closed right after)."""
-        handle.prompt_cache.persist_all()
-        handle.worker.shutdown()
-        handle.architecture.close()
-        memory_trimmer.schedule()
 
     def holds_chat(self, tag: str) -> bool:
         """Is a conversation of the chat `tag` in RAM on any loaded model? (cluster routing)"""
@@ -208,7 +179,7 @@ class ModelManager:
     def shutdown(self) -> None:
         """Server stop: halts every reply, saves every model's cached conversations to disk and
         waits for the writes, so a restart keeps long chats cheap to resume."""
-        for tag in list(self._handles):
+        for tag in self._loaded.tags():
             self.unload(tag)
         if self._cache_store is not None:
             self._cache_store.flush()
@@ -227,41 +198,32 @@ class ModelManager:
     ) -> None:
         """New values without a restart; None keeps one. Loaded models take the keep-alive, cache
         and concurrency limits now; the other values apply from the next load."""
-        if max_loaded is not None:
-            self._max_loaded = max_loaded
-        if default_keep_alive_seconds is not None:
-            self._default_keep_alive_seconds = default_keep_alive_seconds
-        if memory_safety_margin is not None:
-            self._memory_safety_margin = memory_safety_margin
-        if prompt_cache_slots is not None:
-            self._prompt_cache_slots = prompt_cache_slots
-        if prompt_cache_budget_mb is not None:
-            self._prompt_cache_budget_bytes = prompt_cache_budget_mb << 20
-        if max_decode_batch is not None:
-            self._max_decode_batch = max_decode_batch
-        if enable_quantized_native_compute is not None:
-            self._enable_quantized_native_compute = enable_quantized_native_compute
-        if gpu_weight_mode is not None:
-            self._gpu_weight_mode = gpu_weight_mode
+        new = {
+            "max_loaded": max_loaded,
+            "default_keep_alive_seconds": default_keep_alive_seconds,
+            "memory_safety_margin": memory_safety_margin,
+            "prompt_cache_slots": prompt_cache_slots,
+            "prompt_cache_budget_bytes": (
+                prompt_cache_budget_mb << 20 if prompt_cache_budget_mb is not None else None
+            ),
+            "max_decode_batch": max_decode_batch,
+            "enable_quantized_native_compute": enable_quantized_native_compute,
+            "gpu_weight_mode": gpu_weight_mode,
+        }
+        for name, value in new.items():
+            if value is not None:
+                setattr(self.settings, name, value)
         cache_changed = prompt_cache_slots is not None or prompt_cache_budget_mb is not None
-        for handle in list(self._handles.values()):
+        for handle in self._loaded.handles():
             if default_keep_alive_seconds is not None:
                 handle.keep_alive_seconds = default_keep_alive_seconds
             if cache_changed:
-                budget = self._prompt_cache_budget_bytes
+                budget = self.settings.prompt_cache_budget_bytes
                 if self.on_gpu:  # never above the VRAM cap set at load
                     budget = min(budget, handle.prompt_cache.budget_bytes)
-                handle.prompt_cache.set_limits(self._prompt_cache_slots, budget)
+                handle.prompt_cache.set_limits(self.settings.prompt_cache_slots, budget)
             if max_decode_batch is not None:
                 handle.worker.set_max_active(max_decode_batch)
-
-    def _cache_budget_bytes(self, on_gpu: bool, free_before_load: int, weight_bytes: int) -> int:
-        """Prompt-cache budget. On a GPU the cached KV lives in VRAM beside the weights, so it is
-        capped at half the VRAM left once this model's weights are in (never above the setting; the
-        weights may not be uploaded yet, hence the estimate)."""
-        if not on_gpu:
-            return self._prompt_cache_budget_bytes
-        return min(self._prompt_cache_budget_bytes, max(0, free_before_load - weight_bytes) // 2)
 
     @property
     def on_gpu(self) -> bool:
@@ -274,162 +236,12 @@ class ModelManager:
         return self._clock()
 
     def list_loaded(self) -> list[ModelHandle]:
-        self._evict_expired(self._clock())
-        return list(self._handles.values())
+        self._loaded.evict_expired(self._clock())
+        return self._loaded.handles()
 
     def evict_expired(self) -> None:
-        self._evict_expired(self._clock())
-
-    def _evict_expired(self, now: float) -> None:
-        # A handle whose worker is_busy (ModelWorker.is_busy says why) is never evicted,
-        # keep-alive expired or not: the timer running out doesn't make it safe to yank the handle
-        # from a job still using it; the worker would keep computing, orphaned from this dict and
-        # invisible to /api/ps, with unload (the one way to stop it) unable to find it.
-        for tag in [
-            tag
-            for tag, handle in self._handles.items()
-            if handle.is_expired(now) and not handle.worker.is_busy()
-        ]:
-            self._retire(self._handles.pop(tag))
-
-    def _evict_least_recently_used(self) -> None:
-        # Same "never evict a busy handle" rule as _evict_expired: if every loaded handle is busy
-        # this is a deliberate no-op, and get_or_load's caller loads the new model alongside,
-        # temporarily over max_loaded rather than corrupting an in-flight generation. A soft cap
-        # under contention is the honest tradeoff; a slot in use can't be safely freed.
-        idle = {tag: handle for tag, handle in self._handles.items() if not handle.worker.is_busy()}
-        if not idle:
-            return
-        lru_tag = min(idle, key=lambda tag: idle[tag].last_used_at)
-        self._retire(self._handles.pop(lru_tag))
+        self._loaded.evict_expired(self._clock())
 
     def _load(self, tag: str, keep_alive_seconds: int | None, now: float) -> ModelHandle:
-        installed = self._catalog.get(tag)
-        gguf_path = self._catalog.gguf_path_for_tag(tag)
-
-        # Parsed here (before the memory check), not left to GGUFModelLoader's constructor, so the
-        # tensor shapes are available to compute bf16_bytes before deciding whether to attempt the
-        # load. GGUFReader.read is a cheap KB-scale header parse, so GGUFModelLoader.__init__
-        # re-parsing costs nothing worth avoiding. `.metadata` is kept to resolve the architecture
-        # class below without another parse.
-        parsed = GGUFReader(gguf_path).read()
-        tensor_infos = parsed.tensor_infos
-        bf16_bytes = exact_bf16_bytes(tensor_infos)
-        architecture_cls = self._registry.resolve(parsed.metadata)
-
-        # Why this breaker needs its own smaller estimate in this mode:
-        # Settings.enable_quantized_native_compute / estimate_quantized_native_bytes.
-        # `select_load_dtype` below still uses the full `bf16_bytes`: it decides float32-vs-bf16
-        # only for tensors fully materialized either way (norms/embeddings/attn_q/attn_k), and a
-        # smaller number could wrongly pick float32 with less headroom than assumed. The CPU
-        # packed-weight kernels read the mmap, so a GPU model either materializes in bf16 or, with
-        # gpu_weight_mode="packed", uploads supported quant types still packed.
-        on_gpu = self._device.is_gpu
-        if on_gpu and not architecture_cls.SUPPORTS_GPU:
-            raise DeviceUnavailableError(
-                f"architecture {architecture_cls.NAME!r} has no GPU support yet (CPU only)"
-            )
-        wired = architecture_cls.NAME in QUANTIZED_NATIVE_WIRED_ARCHITECTURES
-        gpu_packed = on_gpu and wired and self._gpu_weight_mode == "packed"
-        quantized_native_enabled = gpu_packed or (
-            self._enable_quantized_native_compute and not on_gpu and wired
-        )
-        real_bytes_needed = estimate_quantized_native_bytes(
-            tensor_infos,
-            quantized_native_enabled,
-            architecture_cls.NAME,
-            packable=TorchDequantizer.supports if gpu_packed else None,
-        )
-
-        free_before_load = (self._device.free_memory_bytes() or 0) if on_gpu else 0
-        ensure_enough_memory_to_load(
-            tag,
-            real_bytes_needed,
-            self._memory_safety_margin,
-            list(self._handles),
-            available_fn=self._device.free_memory_bytes if on_gpu else None,
-            memory_kind="VRAM" if on_gpu else "memory",
-        )
-        # float32-vs-bf16 for what stays float: with quantized-native compute that is a small part
-        # of the model, so size the decision from the real packed footprint, not the full unpacked
-        # bf16 size, which made a 4B model always fall to bf16, ~10x slower here (no hardware bf16;
-        # measured: Qwen3.5-4B decode 1.65 -> 0.18 tok/s).
-        dtype = (
-            self._device.load_dtype()
-            if on_gpu
-            else select_load_dtype(
-                real_bytes_needed if quantized_native_enabled else bf16_bytes,
-                self._memory_safety_margin,
-            )
-        )
-
-        # Mixed per-layer float32/bf16 precision: plan_mixed_precision_load (including why it
-        # returns (None, dtype) by default).
-        layer_dtypes, loader_dtype = plan_mixed_precision_load(
-            tensor_infos,
-            dtype,
-            self._memory_safety_margin,
-            enabled=self._enable_mixed_precision_loading and not on_gpu,
-            supports_mixed_precision=architecture_cls is Mistral3TextArchitecture,
-        )
-
-        # No `with` block on purpose: on-the-fly dequant means `from_gguf` defers reading tensor
-        # bytes until the first forward pass (ModelArchitecture._ensure_materialized), so the mmap
-        # behind `loader` must stay open past this method; ownership passes to `architecture` once
-        # from_gguf succeeds. If anything fails first, this closes it here instead of leaking it.
-        loader = GGUFModelLoader(gguf_path, dtype=loader_dtype)
-        try:
-            # See Settings.enable_quantized_native_compute: only architectures in
-            # QUANTIZED_NATIVE_WIRED_ARCHITECTURES accept this kwarg today.
-            quantized_native_kwargs = (
-                {"enable_quantized_native": True} if quantized_native_enabled else {}
-            )
-            if layer_dtypes is not None:
-                architecture = architecture_cls.from_gguf(
-                    loader, dtype=dtype, layer_dtypes=layer_dtypes, **quantized_native_kwargs
-                )
-            else:
-                architecture = architecture_cls.from_gguf(
-                    loader, dtype=dtype, **quantized_native_kwargs
-                )
-            tokenizer = build_tokenizer(loader.metadata)
-            prompt_builder = PromptBuilderFactory.for_metadata(loader.metadata, tag=tag)
-        except Exception:
-            loader.close()
-            raise
-        try:
-            architecture.place_on(self._device.torch_device, packed_weights=gpu_packed)
-        except Exception:
-            architecture.close()
-            raise
-        architecture.eval()
-
-        return ModelHandle(
-            tag=tag,
-            architecture=architecture,
-            tokenizer=tokenizer,
-            worker=ModelWorker(
-                BatchDecoder(architecture, self._max_decode_batch), self._max_decode_batch
-            ),
-            capabilities=installed.capabilities,
-            size_bytes=installed.size_bytes,
-            keep_alive_seconds=(
-                keep_alive_seconds
-                if keep_alive_seconds is not None
-                else self._default_keep_alive_seconds
-            ),
-            last_used_at=now,
-            prompt_builder=prompt_builder,
-            tool_call_format=ToolCallFormats.for_template(
-                loader.metadata.get("tokenizer.chat_template"), loader.metadata.architecture
-            ),
-            extra_eos_token_ids=extra_eos_token_ids(loader.metadata),
-            prompt_cache=PromptCache(
-                self._prompt_cache_slots,
-                self._cache_budget_bytes(on_gpu, free_before_load, real_bytes_needed),
-                ModelCacheTier(self._cache_store, f"{tag}|{installed.size_bytes}")
-                if self._cache_store is not None
-                else None,
-                self._prompt_cache_context_shift,
-            ),
-        )
+        """One model loaded (HandleBuilder.build); a seam tests replace to slow or count loads."""
+        return self._builder.build(tag, keep_alive_seconds, now, self._loaded.tags())

@@ -32,7 +32,7 @@ async def test_the_worker_is_busy_while_the_job_runs() -> None:
 
     task = asyncio.create_task(WorkerCall.collect(worker, job))
     await asyncio.to_thread(started.wait, 5)
-    # What ModelManager._evict_expired checks before closing a model.
+    # What LoadedModels.evict_expired checks before closing a model.
     assert worker.is_busy()
     release.set()
     assert await task == [1]
