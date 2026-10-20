@@ -6,7 +6,7 @@
 
 typedef float (*mx_vec_dot_fn)(const uint8_t *row, const mx_block_q8_k *y, int nb);
 
-/* How one GGML type is computed: K-quants set `unpack` (and `has_min` for Q4_K/Q5_K), plus `fused` with SSSE3; Q8_0 sets only `dot`; I-/T-quants set only `dot_f32` (see mx_common.h). `block_size` defaults to MX_QK_K; each case overrides it with its real size (IQ4_NL: 32). */
+/* How one GGML type is computed: K-quants set `unpack` (and `has_min` for Q4_K/Q5_K), plus `fused` with SSSE3; grid I-quants set `unpack` and `fused` (mx_unpack_iq.c, any CPU); Q8_0 sets only `dot`; IQ4_NL/IQ4_XS and T-quants set only `dot_f32` (see mx_common.h). `block_size` defaults to MX_QK_K; each case overrides it with its real size (IQ4_NL: 32). */
 typedef struct {
     size_t row_bytes;
     int block_size;

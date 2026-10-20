@@ -38,7 +38,7 @@ def _f16(rng: random.Random, lo: float, hi: float) -> bytes:
 
 def _iq1m_sc(rng: random.Random) -> bytes:
     """IQ1_M has no `d` field: the scale is reassembled from the top nibble of each `sc` word
-    (mx_vec_dot_iq1_m_f32). Forcing sc2/sc3's top nibble keeps the reassembled fp16 exponent away
+    (mx_unpack_iq1_m_block). Forcing sc2/sc3's top nibble keeps the reassembled fp16 exponent away
     from 0/31 (denormal/inf/nan) so the comparison stays finite; sc0/sc1's top nibbles and every
     word's low 12 bits (the dl1/dl2 fields) stay random."""
     sc0 = rng.randrange(0x10000)

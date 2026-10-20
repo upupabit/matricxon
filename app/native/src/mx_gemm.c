@@ -76,31 +76,38 @@ int mx_kernel_for(int ggml_type, int in_features, mx_kernel *k) {
         return 1;
     case MX_TYPE_IQ2_XXS:
         k->row_bytes = nb * MX_IQ2_XXS_BYTES;
-        k->dot_f32 = mx_vec_dot_iq2_xxs_f32;
+        k->unpack = mx_unpack_iq2_xxs;
+        k->fused = mx_vec_dot_iq2_xxs;
         return 1;
     case MX_TYPE_IQ2_XS:
         k->row_bytes = nb * MX_IQ2_XS_BYTES;
-        k->dot_f32 = mx_vec_dot_iq2_xs_f32;
+        k->unpack = mx_unpack_iq2_xs;
+        k->fused = mx_vec_dot_iq2_xs;
         return 1;
     case MX_TYPE_IQ2_S:
         k->row_bytes = nb * MX_IQ2_S_BYTES;
-        k->dot_f32 = mx_vec_dot_iq2_s_f32;
+        k->unpack = mx_unpack_iq2_s;
+        k->fused = mx_vec_dot_iq2_s;
         return 1;
     case MX_TYPE_IQ3_XXS:
         k->row_bytes = nb * MX_IQ3_XXS_BYTES;
-        k->dot_f32 = mx_vec_dot_iq3_xxs_f32;
+        k->unpack = mx_unpack_iq3_xxs;
+        k->fused = mx_vec_dot_iq3_xxs;
         return 1;
     case MX_TYPE_IQ3_S:
         k->row_bytes = nb * MX_IQ3_S_BYTES;
-        k->dot_f32 = mx_vec_dot_iq3_s_f32;
+        k->unpack = mx_unpack_iq3_s;
+        k->fused = mx_vec_dot_iq3_s;
         return 1;
     case MX_TYPE_IQ1_S:
         k->row_bytes = nb * MX_IQ1_S_BYTES;
-        k->dot_f32 = mx_vec_dot_iq1_s_f32;
+        k->unpack = mx_unpack_iq1_s;
+        k->fused = mx_vec_dot_iq1_s;
         return 1;
     case MX_TYPE_IQ1_M:
         k->row_bytes = nb * MX_IQ1_M_BYTES;
-        k->dot_f32 = mx_vec_dot_iq1_m_f32;
+        k->unpack = mx_unpack_iq1_m;
+        k->fused = mx_vec_dot_iq1_m;
         return 1;
     default:
         return 0;

@@ -253,7 +253,7 @@ float mx_vec_dot_q5_k(const uint8_t *row, const mx_block_q8_k *y, int nb);
 float mx_vec_dot_q6_k(const uint8_t *row, const mx_block_q8_k *y, int nb);
 #endif
 
-/* mx_dot_f32.c: IQ4_NL/IQ4_XS/TQ1_0/TQ2_0, ported from the Numba kernels (app/gguf/dequant/quantized_gemv_iq_ternary.py). They work on the raw float activation row, not mx_block_q8_k: IQ4_NL/XS use a non-linear 16-entry LUT and TQ1_0/TQ2_0 are base-3/base-4 ternary codes, so no Q8_K integer dot applies. mx_gemm passes `x` unchanged; a Q8_K formulation would be unvalidated. */
+/* mx_dot_f32.c: IQ4_NL/IQ4_XS/TQ1_0/TQ2_0, ported from the Numba kernels (app/gguf/dequant/quantized_gemv_iq_ternary.py). They work on the raw float activation row, not mx_block_q8_k: IQ4_NL/XS use a non-linear 16-entry LUT and TQ1_0/TQ2_0 are base-3/base-4 ternary codes, so no Q8_K integer dot applies yet. mx_gemm passes `x` unchanged; a Q8_K formulation would be unvalidated. */
 typedef float (*mx_vec_dot_f32_fn)(const uint8_t *row, const float *x, int nb);
 
 float mx_vec_dot_iq4_nl_f32(const uint8_t *row, const float *x, int nb);
@@ -261,13 +261,22 @@ float mx_vec_dot_iq4_xs_f32(const uint8_t *row, const float *x, int nb);
 float mx_vec_dot_tq1_0_f32(const uint8_t *row, const float *x, int nb);
 float mx_vec_dot_tq2_0_f32(const uint8_t *row, const float *x, int nb);
 
-/* mx_dot_iq2.c/mx_dot_iq3.c/mx_dot_iq1.c: grid-codebook I-quants (IQ2_XXS/XS/S, IQ3_XXS/S, IQ1_S/M), raw float `x` as above, ported from quantized_gemv_iq{1,2,3}.py. Tables: generated mx_iq_grids.h (tools/generate_iq_grids_c.py). */
-float mx_vec_dot_iq2_xxs_f32(const uint8_t *row, const float *x, int nb);
-float mx_vec_dot_iq2_xs_f32(const uint8_t *row, const float *x, int nb);
-float mx_vec_dot_iq2_s_f32(const uint8_t *row, const float *x, int nb);
-float mx_vec_dot_iq3_xxs_f32(const uint8_t *row, const float *x, int nb);
-float mx_vec_dot_iq3_s_f32(const uint8_t *row, const float *x, int nb);
-float mx_vec_dot_iq1_s_f32(const uint8_t *row, const float *x, int nb);
-float mx_vec_dot_iq1_m_f32(const uint8_t *row, const float *x, int nb);
+/* mx_unpack_iq.c: grid-codebook I-quants (IQ2_XXS/XS/S, IQ3_XXS/S, IQ1_S/M) on the K-quants' integer
+ * path: rows unpack to mx_block_unpacked (has_min = 0), and the fused per-row dots unpack block by block.
+ * Tables: generated mx_iq_grids.h (tools/generate_iq_grids_c.py). */
+void mx_unpack_iq2_xxs(const uint8_t *restrict row, mx_block_unpacked *restrict out, int nb);
+void mx_unpack_iq2_xs(const uint8_t *restrict row, mx_block_unpacked *restrict out, int nb);
+void mx_unpack_iq2_s(const uint8_t *restrict row, mx_block_unpacked *restrict out, int nb);
+void mx_unpack_iq3_xxs(const uint8_t *restrict row, mx_block_unpacked *restrict out, int nb);
+void mx_unpack_iq3_s(const uint8_t *restrict row, mx_block_unpacked *restrict out, int nb);
+void mx_unpack_iq1_s(const uint8_t *restrict row, mx_block_unpacked *restrict out, int nb);
+void mx_unpack_iq1_m(const uint8_t *restrict row, mx_block_unpacked *restrict out, int nb);
+float mx_vec_dot_iq2_xxs(const uint8_t *row, const mx_block_q8_k *y, int nb);
+float mx_vec_dot_iq2_xs(const uint8_t *row, const mx_block_q8_k *y, int nb);
+float mx_vec_dot_iq2_s(const uint8_t *row, const mx_block_q8_k *y, int nb);
+float mx_vec_dot_iq3_xxs(const uint8_t *row, const mx_block_q8_k *y, int nb);
+float mx_vec_dot_iq3_s(const uint8_t *row, const mx_block_q8_k *y, int nb);
+float mx_vec_dot_iq1_s(const uint8_t *row, const mx_block_q8_k *y, int nb);
+float mx_vec_dot_iq1_m(const uint8_t *row, const mx_block_q8_k *y, int nb);
 
 #endif
