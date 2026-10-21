@@ -18,6 +18,7 @@ import torch
 from app.architectures.base import GenerationCancelledError, ModelArchitecture
 from app.architectures.quantized_linear import QuantizedLinear
 from app.runtime.batch_cache import batch_cache_for
+from app.runtime.stage_profiler import StageProfiler
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,7 @@ class BatchDecoder:
                 )
         except Exception as exc:  # noqa: BLE001 - delivered to every reply in this batch
             return [exc] * len(steps)
+        StageProfiler.of(self._architecture).forward_finished()
         logger.info(
             "batched decode step: %d sequences in %.2fs", len(steps), time.monotonic() - started
         )
@@ -103,5 +105,6 @@ class BatchDecoder:
         except Exception as exc:  # noqa: BLE001 - this reply fails; the others in the round go on
             logger.exception("decode step failed")
             return exc
+        StageProfiler.of(self._architecture).forward_finished()
         logger.info("decode step forward: %.2fs", time.monotonic() - started)
         return logits

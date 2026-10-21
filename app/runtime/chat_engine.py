@@ -7,9 +7,11 @@ import torch
 from app.architectures.base import GenerationCancelledError, ModelArchitecture
 from app.runtime.batch_decode import CHECKPOINT, BatchDecoder, Checkpoint, DecodeStep
 from app.runtime.generation_request import GenerationRequest, GenerationResult
+from app.runtime.live_requests import LiveRegistry, LiveRequest
 from app.runtime.mamba_cache import NemotronHHybridCache
 from app.runtime.prompt_cache import PromptCache
 from app.runtime.sampler import Sampler
+from app.runtime.stage_profiler import StageProfiler
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +44,21 @@ class ChatEngine:
         prompt_cache: PromptCache | None = None,
         prefill_chunk: int = PREFILL_CHUNK,
         plain_prefill_chunk: int = PLAIN_PREFILL_CHUNK,
+        live: LiveRequest | None = None,
     ) -> None:
         self._architecture = architecture
         self._eos_token_ids = eos_token_ids
         self._prompt_cache = prompt_cache or PromptCache()
         self._prefill_chunk = prefill_chunk
         self._plain_prefill_chunk = plain_prefill_chunk
+        # Progress for GET /api/live; a detached one when the caller doesn't track it.
+        self._live = live or LiveRequest("", "")
+
+    def _profiler(self) -> StageProfiler:
+        """Stage timing, switched on or off on this (the worker) thread."""
+        profiler = StageProfiler.of(self._architecture)
+        profiler.sync(LiveRegistry.shared().watched)
+        return profiler
 
     @staticmethod
     def _images_in(
@@ -153,6 +164,7 @@ class ChatEngine:
         room = max(sampling.num_ctx - prompt_len, 0)
         max_new_tokens = room if sampling.num_predict < 0 else min(sampling.num_predict, room)
 
+        self._live.prefill(reused, self._profiler())
         try:
             forward_started = time.monotonic()
             cuts = self._prefill_cuts(
@@ -174,9 +186,11 @@ class ChatEngine:
                         self._images_in(request.image_embeddings, start, end),
                         last_logits_only=True,
                     )
+                StageProfiler.of(self._architecture).forward_finished()
                 kv_cache.advance(end - start)
                 self._prompt_cache.advanced(kv_cache, prompt_ids[start:end])
                 self._prompt_cache.capture(kv_cache)
+                self._live.prefilled(end - reused)
                 start = end
                 if end != cuts[-1]:
                     yield CHECKPOINT
@@ -189,8 +203,13 @@ class ChatEngine:
 
             generated_ids: list[int] = []
             for _ in range(max_new_tokens):
+                profiler = self._profiler()
+                sample_started = time.perf_counter()
                 next_token = sampler.sample(logits[0, -1, :], generated_ids)
+                if profiler.attached:
+                    profiler.add("sampler", time.perf_counter() - sample_started)
                 generated_ids.append(next_token)
+                self._live.token()
                 yield next_token
                 if next_token in self._eos_token_ids:
                     return

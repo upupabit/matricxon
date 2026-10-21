@@ -14,6 +14,7 @@ from app.models.manager import ModelManager
 from app.native.gemm import NativeGemm
 from app.runtime.chat_engine import ChatEngine
 from app.runtime.generation_request import GenerationRequest, SamplingConfig
+from app.runtime.live_requests import LiveRegistry, LiveRequest
 from app.runtime.prompt_builder import Mistral3PromptBuilder
 from app.runtime.qwen3vl_fusion import FusedPrompt, build_qwen3vl_prompt
 from app.runtime.reply_text_stream import ReplyTextStream
@@ -52,12 +53,24 @@ class ChatRequestHandler:
                 self._model_manager.unload(request.model)
             return JSONResponse(status_code=200, content={})
 
+        live = LiveRegistry.shared().start(request.request_id, request.model)
+        try:
+            response = self._handle(request, live)
+        except BaseException:
+            live.finish()
+            raise
+        if not isinstance(response, NDJSONResponse):
+            live.finish()
+        return response
+
+    def _handle(self, request: ChatRequest, live: LiveRequest) -> JSONResponse | NDJSONResponse:
         load_started = time.monotonic()
         handle = self._model_manager.get_or_load(
             request.model, keep_alive_seconds=request.keep_alive
         )
         ModelKind.require_generative(handle)
         load_duration = time.monotonic() - load_started
+        live.loaded()
         logger.info("model %r ready in %.2fs (get_or_load)", request.model, load_duration)
 
         # A stop (unload) for this model arrived while it had no handle, i.e. while the
@@ -126,7 +139,9 @@ class ChatRequestHandler:
             request, prompt_token_ids, image_embeddings, fused
         )
         return NDJSONResponse(
-            self._stream(handle, generation_request, len(prompt_token_ids), load_duration, request)
+            self._stream(
+                handle, generation_request, len(prompt_token_ids), load_duration, request, live
+            )
         )
 
     @staticmethod
@@ -209,6 +224,26 @@ class ChatRequestHandler:
         prompt_eval_count: int,
         load_duration: float,
         request: ChatRequest,
+        live: LiveRequest,
+    ) -> AsyncIterator[dict]:
+        """Wraps `_stream_tokens` so the live entry ends however the stream does."""
+        live.queued(prompt_eval_count)
+        try:
+            async for chunk in self._stream_tokens(
+                handle, generation_request, prompt_eval_count, load_duration, request, live
+            ):
+                yield chunk
+        finally:
+            live.finish()
+
+    async def _stream_tokens(
+        self,
+        handle: ModelHandle,
+        generation_request: GenerationRequest,
+        prompt_eval_count: int,
+        load_duration: float,
+        request: ChatRequest,
+        live: LiveRequest,
     ) -> AsyncIterator[dict]:
         request_id = request.request_id
         eos_token_ids = {handle.tokenizer.eos_token_id} | handle.extra_eos_token_ids
@@ -216,6 +251,7 @@ class ChatRequestHandler:
             handle.architecture,
             eos_token_ids=eos_token_ids,
             prompt_cache=handle.prompt_cache,
+            live=live,
         )
         reply = ReplyTextStream(handle.tokenizer, handle.tool_call_format, request.tools)
         # Cancelled in the gap between handle and this stream starting: nothing to run.
@@ -272,10 +308,12 @@ class ChatRequestHandler:
                 seconds,
                 100 * seconds / eval_duration if eval_duration else 0.0,
             )
+        first_token = live.first_token_seconds()
         yield ChatDoneChunk(
             prompt_eval_count=prompt_eval_count,
             eval_count=eval_count,
             load_duration=_seconds_to_ns(load_duration),
+            prompt_eval_duration=_seconds_to_ns(first_token) if first_token is not None else None,
             eval_duration=_seconds_to_ns(eval_duration),
             total_duration=_seconds_to_ns(load_duration + eval_duration),
         ).to_ndjson_dict()
