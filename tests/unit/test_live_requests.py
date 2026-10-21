@@ -82,6 +82,28 @@ class TestLiveRegistry:
 
         assert ids == ["new"]
 
+    def test_old_entries_are_dropped_even_when_no_one_watches(self) -> None:
+        clock = FakeClock()
+        registry = LiveRegistry(clock)
+        registry.start("old", "m").finish()
+        clock.now += LiveRegistry.KEEP_FINISHED_SECONDS + 1
+
+        registry.start("new", "m")
+
+        assert list(registry._requests) == ["new"]
+        assert not registry.watched
+
+    def test_a_finished_request_lets_go_of_the_model(self) -> None:
+        live = LiveRequest("r1", "m", FakeClock())
+        model = ToyModel()
+        live.prefill(reused=0, profiler=StageProfiler.of(model))
+        live.finish()
+
+        entry = live.entry()
+
+        assert live._profiler is None
+        assert entry.layer_count == 3 and entry.stage_timing is True
+
     def test_a_request_without_id_gets_one(self) -> None:
         live = LiveRegistry(FakeClock()).start(None, "m")
 

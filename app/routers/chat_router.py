@@ -66,7 +66,7 @@ class ChatRequestHandler:
     def _handle(self, request: ChatRequest, live: LiveRequest) -> JSONResponse | NDJSONResponse:
         load_started = time.monotonic()
         handle = self._model_manager.get_or_load(
-            request.model, keep_alive_seconds=request.keep_alive
+            request.model, keep_alive_seconds=request.keep_alive, role=request.model_role
         )
         ModelKind.require_generative(handle)
         load_duration = time.monotonic() - load_started

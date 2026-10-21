@@ -154,7 +154,7 @@ variables win). All of them are listed in `app/config.py`.
 | --- | --- | --- |
 | `MATRICXON_HOST`, `MATRICXON_PORT` | `0.0.0.0`, `8420` | Where the server listens |
 | `MATRICXON_MODELS_DIR` | `./data/models` | Where models are stored |
-| `MATRICXON_MAX_LOADED_MODELS` | `2` | Models kept in RAM at once |
+| `MATRICXON_MAX_LOADED_MODELS` | `2` | Chat models kept in RAM at once (embedding, reranking and vision-role models don't count) |
 | `MATRICXON_DEFAULT_KEEP_ALIVE_SECONDS` | `300` | Idle time before a model unloads |
 | `MATRICXON_MEMORY_SAFETY_MARGIN` | `1.2` | Free RAM needed beyond a model's size (1.1 to 1.8) |
 | `MATRICXON_ENABLE_QUANTIZED_NATIVE_COMPUTE` | `true` | Multiply packed weights directly |

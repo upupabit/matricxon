@@ -60,6 +60,9 @@ class ChatRequest(BaseModel):
     # Cached prompts carry it so `DELETE /api/cache/persistence/chats/{tag}` can drop a deleted
     # chat's stored cache; never shown or used for matching.
     cache_tag: str | None = None
+    # "vision" when pAIring asks for its default vision model (an image attachment): that model then
+    # doesn't count toward max_loaded_models (app.models.load_limit). None: a normal chat model.
+    model_role: str | None = None
 
     def is_unload_call(self) -> bool:
         return not self.messages and self.keep_alive == 0

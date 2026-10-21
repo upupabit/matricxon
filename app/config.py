@@ -85,10 +85,9 @@ class Settings(BaseSettings):
     # (ModelWorker / BatchDecoder). More users wait in line. Batching pays off with the native C
     # kernels.
     max_decode_batch: int = Field(default=8, ge=1, le=64)
-    # 2 matches pAIring's usage. Raising it (MATRICXON_MAX_LOADED_MODELS) is safe with enough RAM: a
-    # load that
-    # clearly won't fit fails with InsufficientMemoryError
-    # (ModelManager._ensure_enough_memory_to_load).
+    # Chat models kept in RAM at once (MATRICXON_MAX_LOADED_MODELS). Embedding and reranking models,
+    # and a model asked for in the vision role, don't count (app.models.load_limit). Raising it is
+    # safe with enough RAM: a load that clearly won't fit fails with InsufficientMemoryError.
     max_loaded_models: int = 2
     # Headroom required beyond a model's exact bf16 weight size before a load
     # (ModelManager._ensure_enough_memory_to_load/select_load_dtype). Default 1.2x. Bounded 1.1-1.8:

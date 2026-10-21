@@ -7,6 +7,7 @@ from app.models.catalog import ModelCatalog
 from app.models.handle import ModelHandle
 from app.models.handle_builder import HandleBuilder
 from app.models.load_dtype import MEMORY_SAFETY_MARGIN
+from app.models.load_limit import LoadLimit
 from app.models.load_settings import LoadSettings
 from app.models.loaded_models import LoadedModels
 from app.models.weight_prefetch import WeightPrefetch
@@ -19,13 +20,10 @@ _MAX_REMEMBERED_CANCELS = 1024
 
 
 class ModelManager:
-    """Loads GGUF models on demand and keeps up to `max_loaded` resident, evicting the
-    least-recently-used one past its keep-alive.
+    """Loads GGUF models on demand and keeps up to `max_loaded` chat models resident (helpers such
+    as embedding/rerank models don't count: load_limit.py), evicting the least-recently-used one.
 
-    `max_loaded=2` matches pAIring's usage: its RAG path calls `embed` then `chat_stream` each turn,
-    so 1 would reload a model every turn. There is no upper bound, but raising it on a
-    RAM-constrained box relies on `_ensure_enough_memory_to_load`, which fails a load that clearly
-    won't fit with `InsufficientMemoryError` instead of risking an OOM kill.
+    No upper bound: a load that clearly won't fit fails with `InsufficientMemoryError`.
 
     Loads in bf16 when the hardware accelerates it (CUDA, or a CPU with `avx512_bf16`/`amx_bf16`),
     otherwise float32 if that demonstrably fits in available memory, else bf16
@@ -72,9 +70,8 @@ class ModelManager:
         self._builder = HandleBuilder(catalog, self._device, self.settings, cache_store)
         self._clock = clock
         self._loaded = LoadedModels()
-        # Tags stop-requested while they had no handle yet (unload says why that is common, not a
-        # stray call): on the slow-CPU target loading takes tens of seconds, and a caller can ask to
-        # stop well before it finishes.
+        self._limit = LoadLimit(catalog)
+        # Tags stop-requested while still loading (a slow load can outlast a user; see unload).
         self._cancelled_loads: set[str] = set()
         self._cancelled_requests: OrderedDict[str, None] = OrderedDict()
         # One lock per tag: requests for a model that is still loading (chats, a cluster warm-up)
@@ -82,13 +79,15 @@ class ModelManager:
         self._load_locks: dict[str, threading.Lock] = {}
         self._load_locks_guard = threading.Lock()
 
-    def get_or_load(self, tag: str, keep_alive_seconds: int | None = None) -> ModelHandle:
+    def get_or_load(
+        self, tag: str, keep_alive_seconds: int | None = None, role: str | None = None
+    ) -> ModelHandle:
         with self._load_locks_guard:
             lock = self._load_locks.setdefault(tag, threading.Lock())
         with lock:
-            return self._get_or_load(tag, keep_alive_seconds)
+            return self._get_or_load(tag, keep_alive_seconds, self._limit.counts(tag, role))
 
-    def _get_or_load(self, tag: str, keep_alive_seconds: int | None) -> ModelHandle:
+    def _get_or_load(self, tag: str, keep_alive_seconds: int | None, counts: bool) -> ModelHandle:
         now = self._clock()
         self._loaded.evict_expired(now)
 
@@ -96,15 +95,16 @@ class ModelManager:
         if handle is not None:
             WeightPrefetch.after_idle(self._builder.gguf_path(tag), now - handle.last_used_at)
             handle.touch(now, keep_alive_seconds)
+            handle.counts_toward_limit = counts  # the latest use decides (chat vs vision role)
             return handle
 
-        if len(self._loaded) >= self.settings.max_loaded:
-            self._loaded.evict_least_recently_used(self.settings.max_loaded)
+        if counts:
+            self._loaded.make_room(self.settings.max_loaded)
 
-        # A fresh load starts clean: a leftover cancellation flag belongs to a previous finished
-        # attempt for this tag.
+        # A fresh load starts clean: a leftover cancellation flag belongs to an earlier attempt.
         self._cancelled_loads.discard(tag)
         handle = self._load(tag, keep_alive_seconds, now)
+        handle.counts_toward_limit = counts
         WeightPrefetch.start(self._builder.gguf_path(tag))  # weights load lazily: read ahead
         handle.worker.on_job_done = lambda: handle.touch(self._clock())
         self._loaded.add(handle)

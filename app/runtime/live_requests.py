@@ -33,6 +33,8 @@ class LiveRequest:
         self._profiler: StageProfiler | None = None
         self._profile_start: dict[str, float] = {}
         self._stage_seconds: dict[str, float] | None = None
+        self._layer_count: int | None = None
+        self._times_stages = False
 
     def loaded(self) -> None:
         self.load_seconds = self._clock() - self.started
@@ -61,9 +63,14 @@ class LiveRequest:
         self.phase = "decode"
 
     def finish(self) -> None:
+        """Keeps the numbers, drops the profiler: it holds the model, which must stay unloadable."""
         if self.finished_at is not None:
             return
         self._stage_seconds = self.stage_seconds()
+        if self._profiler is not None:
+            self._layer_count = self._profiler.layer_count
+            self._times_stages = self._profiler.times_stages
+        self._profiler = None
         self.finished_at = self._clock()
         self.phase = "done"
 
@@ -103,9 +110,9 @@ class LiveRequest:
             first_token_seconds=self.first_token_seconds(),
             tokens_per_second=self.tokens_per_second(),
             layer=profiler.layer if running and profiler.attached else None,
-            layer_count=profiler.layer_count if profiler else None,
+            layer_count=profiler.layer_count if profiler else self._layer_count,
             stage_seconds=self.stage_seconds(),
-            stage_timing=bool(profiler and profiler.times_stages),
+            stage_timing=profiler.times_stages if profiler else self._times_stages,
         )
 
 
@@ -133,17 +140,22 @@ class LiveRegistry:
     def start(self, request_id: str | None, model: str) -> LiveRequest:
         live = LiveRequest(request_id or f"anon-{uuid.uuid4().hex[:12]}", model, self._clock)
         with self._lock:
+            self._prune()  # also when no one watches, so old entries never pile up
             self._requests[live.request_id] = live
         return live
 
     def snapshot(self) -> LiveSnapshot:
         """Marks the registry watched and lists running replies plus recently finished ones."""
-        now = self._clock()
-        self._watched_until = now + self.WATCH_SECONDS
+        self._watched_until = self._clock() + self.WATCH_SECONDS
         with self._lock:
-            for key, live in list(self._requests.items()):
-                finished = live.finished_at
-                if finished is not None and now - finished > self.KEEP_FINISHED_SECONDS:
-                    del self._requests[key]
+            self._prune()
             requests = list(self._requests.values())
         return LiveSnapshot(requests=[live.entry() for live in requests])
+
+    def _prune(self) -> None:
+        """Drops finished replies older than the keep window; call with the lock held."""
+        now = self._clock()
+        for key, live in list(self._requests.items()):
+            finished = live.finished_at
+            if finished is not None and now - finished > self.KEEP_FINISHED_SECONDS:
+                del self._requests[key]

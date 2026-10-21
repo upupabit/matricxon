@@ -22,6 +22,10 @@ class LoadedModels:
     def __len__(self) -> int:
         return len(self._handles)
 
+    def counted(self) -> int:
+        """Loaded models that count toward max_loaded: chat models (load_limit.py)."""
+        return sum(handle.counts_toward_limit for handle in self._handles.values())
+
     def get(self, tag: str) -> ModelHandle | None:
         return self._handles.get(tag)
 
@@ -47,11 +51,25 @@ class LoadedModels:
             idle_min, keep_min = (now - handle.last_used_at) / 60, handle.keep_alive_seconds // 60
             self.retire(handle, f"idle {idle_min:.0f} min, keep-alive {keep_min} min")
 
+    def make_room(self, max_loaded: int) -> None:
+        """Evicts least-recently-used chat models until one more fits (a vision-role model turning
+        into a chat model can leave more than one too many); stops when the rest are busy."""
+        while self.counted() >= max_loaded:
+            before = len(self._handles)
+            self.evict_least_recently_used(max_loaded)
+            if len(self._handles) == before:
+                return
+
     def evict_least_recently_used(self, max_loaded: int) -> None:
-        # If every loaded handle is busy this is a deliberate no-op, and get_or_load's caller loads
+        # Only among counted (chat) models: a helper never makes room for one, nor the reverse.
+        # If every one of them is busy this is a deliberate no-op, and get_or_load's caller loads
         # the new model alongside, temporarily over max_loaded rather than corrupting an in-flight
         # generation. A soft cap under contention is the honest tradeoff.
-        idle = {tag: handle for tag, handle in self._handles.items() if not handle.worker.is_busy()}
+        idle = {
+            tag: handle
+            for tag, handle in self._handles.items()
+            if handle.counts_toward_limit and not handle.worker.is_busy()
+        }
         if not idle:
             return
         lru_tag = min(idle, key=lambda tag: idle[tag].last_used_at)
