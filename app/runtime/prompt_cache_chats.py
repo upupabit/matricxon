@@ -50,25 +50,31 @@ class PromptCacheChats:
         """If this chat's cached prompt is the new one with its oldest messages trimmed away, cuts
         those tokens out of the cache (re-rotating the rest) instead of re-reading the chat.
         Approximate: the kept tokens were read while the dropped ones were visible, so they carry a
-        trace of them, the trade llama.cpp's context shifting makes."""
+        trace of them, the trade llama.cpp's context shifting makes.
+
+        A chat can have several copies (a branch is kept when a message is edited or deleted):
+        the one keeping the most tokens is shifted. Taking the first found once shifted an old
+        branch and re-read a 1366-token reply the newest copy held."""
+        best: tuple[int, CacheSlot, tuple[int, int, int]] | None = None
         for slot in self._slots:
             if slot.tag != tag or slot.key[1] != key[1] or slot.in_use:
                 continue
             gap = slot.find_gap(prompt_ids)
-            if gap is None:
-                continue
-            keep, dropped, run = gap
-            rotations = architecture.context_shift_rotations(dropped)
-            if rotations is None:
-                return
-            slot.shift_out(keep, dropped, rotations)
-            logger.info(
-                "context shift: dropped %d trimmed tokens after the first %d, kept the next %d",
-                dropped,
-                keep,
-                run,
-            )
+            if gap is not None and (best is None or gap[0] + gap[2] > best[0]):
+                best = (gap[0] + gap[2], slot, gap)
+        if best is None:
             return
+        _, slot, (keep, dropped, run) = best
+        rotations = architecture.context_shift_rotations(dropped)
+        if rotations is None:
+            return
+        slot.shift_out(keep, dropped, rotations)
+        logger.info(
+            "context shift: dropped %d trimmed tokens after the first %d, kept the next %d",
+            dropped,
+            keep,
+            run,
+        )
 
     def _explain_miss(self, prompt_ids: list[int], key: tuple[int, torch.dtype], tag: str) -> str:
         parts = [CacheMissDiagnosis.ram(self._slots, prompt_ids, key, tag)]

@@ -21,6 +21,7 @@ class CacheReader(CacheFilesBase):
         prompt_ids: list[int],
         dtype: torch.dtype,
         min_tokens: int,
+        tag: str = "",
     ) -> tuple[bytes, str] | None:
         """The serialized slot sharing the longest prefix (more than `min_tokens`) with
         `prompt_ids`, removed from disk, with the chat tag it was saved under, or None. Matching
@@ -34,22 +35,24 @@ class CacheReader(CacheFilesBase):
             self._writer.submit(lambda: None).result()
         self._rescan_if_due()
         wanted = self._cipher.prefix_fingerprints(prompt_ids, self._block_tokens())
-        best = self._best_match(model_id, dtype, wanted, min_tokens)
+        best = self._best_match(model_id, dtype, wanted, min_tokens, tag)
         if best is None and time.monotonic() - self._last_scan >= self.MISS_RESCAN_SECONDS:
             self._refresh()
-            best = self._best_match(model_id, dtype, wanted, min_tokens)
+            best = self._best_match(model_id, dtype, wanted, min_tokens, tag)
         if best is None:
             return None
         body = self._consume(best[1])
         return None if body is None else (body, best[2])
 
     def _best_match(
-        self, model_id: str, dtype: torch.dtype, wanted: list[str], min_tokens: int
+        self, model_id: str, dtype: torch.dtype, wanted: list[str], min_tokens: int, tag: str = ""
     ) -> tuple[int, str, str] | None:
         """(shared blocks, file name, chat tag) of the stored file sharing the longest prefix. Any
-        precision: a restore converts it (`KVCache.load`); on a tie the same precision wins."""
+        precision: a restore converts it (`KVCache.load`). On a tie (a trimmed chat shares only its
+        system prompt with every copy) the asking chat's own copy wins, then the same precision,
+        then the copy holding more tokens: a chat's old branch must not beat its newest state."""
         best: tuple[int, str, str] | None = None
-        best_same_dtype = False
+        best_rank: tuple[int, bool, bool, int] | None = None
         block = self._block_tokens()
         with self._lock:
             for name, entry in self._index.items():
@@ -60,14 +63,14 @@ class CacheReader(CacheFilesBase):
                     if mine != theirs:
                         break
                     shared += 1
-                same_dtype = entry.dtype_name == str(dtype)
-                if shared * block > min_tokens and (
-                    best is None
-                    or shared > best[0]
-                    or (shared == best[0] and same_dtype and not best_same_dtype)
-                ):
-                    best = (shared, name, entry.tag)
-                    best_same_dtype = same_dtype
+                rank = (
+                    shared,
+                    bool(tag) and entry.tag == tag,
+                    entry.dtype_name == str(dtype),
+                    entry.length,
+                )
+                if shared * block > min_tokens and (best_rank is None or rank > best_rank):
+                    best, best_rank = (shared, name, entry.tag), rank
         return best
 
     def inspect(self, prompt_ids: list[int]) -> tuple[list[StoredEntry], list[str]]:

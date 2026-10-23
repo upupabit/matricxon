@@ -31,11 +31,11 @@ def test_a_longer_copy_of_the_same_chat_replaces_the_older_one(tmp_path: Path) -
     assert store.chat_count() == 1
 
 
-def test_another_branch_of_the_chat_is_kept(tmp_path: Path) -> None:
+def test_another_branch_of_the_chat_is_replaced_too(tmp_path: Path) -> None:
     store = _store(tmp_path)
     _spill(store, list(range(24)), "chat-a")
     _spill(store, list(range(8)) + [500 + i for i in range(24)], "chat-a")  # an edited message
-    assert store.usage()[0] == 2
+    assert store.usage()[0] == 1  # the chat never goes back to the old branch
     assert store.chat_count() == 1
 
 

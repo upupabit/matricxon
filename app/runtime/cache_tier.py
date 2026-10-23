@@ -54,10 +54,11 @@ class ModelCacheTier:
         num_ctx: int,
         dtype: torch.dtype,
         min_tokens: int,
+        tag: str = "",
     ) -> CacheSlot | None:
         """A slot rebuilt from disk sharing more than `min_tokens` leading tokens with `prompt_ids`,
         or None (nothing stored, or the file no longer fits this model)."""
-        taken = self._store.take(self._model_id, prompt_ids, dtype, min_tokens)
+        taken = self._store.take(self._model_id, prompt_ids, dtype, min_tokens, tag)
         if taken is None:
             return None
         payload, tag = taken

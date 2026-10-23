@@ -138,3 +138,31 @@ def test_a_continuing_conversation_stays_in_one_slot(llama: LlamaArchitecture) -
         prompt = prompt + reply + new_message
 
     assert cache.slot_count == 1
+
+
+def _chat(model: object, cache: PromptCache, ids: list[int], tag: str) -> list[int]:
+    engine = ChatEngine(model, {EOS_TOKEN_ID}, prompt_cache=cache, prefill_chunk=512)
+    return engine.generate(GenerationRequest(torch.tensor([ids]), GREEDY, cache_tag=tag)).token_ids
+
+
+def test_one_chat_keeps_one_copy_after_a_deleted_message(llama: LlamaArchitecture) -> None:
+    cache = _pool(max_slots=4)
+    reply = _chat(llama, cache, CONV_A, "chat-1")
+    _chat(llama, cache, CONV_A + reply + [7, 8, 9], "chat-1")  # a message, later deleted
+    _chat(llama, cache, CONV_A + reply + [40, 41], "chat-1")  # asked again instead
+
+    assert cache.slot_count == 1
+    assert cache.reused_tokens >= len(CONV_A)
+
+
+def test_different_chats_sharing_a_start_still_keep_their_own_copies(
+    llama: LlamaArchitecture,
+) -> None:
+    cache = _pool(max_slots=4)
+    reply = _chat(llama, cache, CONV_A, "chat-1")
+    _chat(llama, cache, CONV_A[:3] + [150, 151, 152], "chat-2")
+
+    assert cache.slot_count == 2
+    assert _chat(llama, cache, CONV_A + reply + [5], "chat-1") and cache.reused_tokens >= len(
+        CONV_A
+    )

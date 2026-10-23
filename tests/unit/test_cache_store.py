@@ -279,3 +279,21 @@ def test_clear_and_forget_reach_files_other_nodes_wrote(tmp_path: Path) -> None:
     assert admin.forget("c1") == 1 and len(list((tmp_path / "c").glob("*.mxc"))) == 1
     admin.clear()
     assert not list((tmp_path / "c").glob("*.mxc"))
+
+
+def test_a_trimmed_chat_restores_its_own_newest_copy(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    system = list(range(8))  # one shared block: all a trimmed chat still has in common
+    for tag, tail in (("c1", range(500, 516)), ("c1", range(600, 632)), ("c2", range(700, 740))):
+        slot = _slot(system + list(tail))
+        slot.tag = tag
+        store.spill_async(MODEL, slot)
+        store.flush()
+
+    payload, tag = store.take(MODEL, system + [9, 9, 9], DTYPE, 0, tag="c1")
+
+    assert tag == "c1"
+    restored = slot_codec.SlotCodec.decode(payload, StubArchitecture(), CTX, DTYPE)
+    assert (
+        len(restored.token_ids) == 40
+    )  # the newest c1 copy, not the old branch or c2's longer one

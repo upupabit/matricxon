@@ -160,3 +160,19 @@ def test_after_a_restart_the_stored_chat_is_cut_too(model, tmp_path, caplog, mon
 
     assert "restored a" in caplog.text and "context shift: dropped" in caplog.text
     assert after.reused_tokens >= len(SYSTEM) + len(MID)
+
+
+def test_the_copy_keeping_the_most_is_shifted_not_an_older_branch(model, caplog):
+    cache = PromptCache(4)
+    # An old branch of the chat (a message later deleted), e.g. restored from disk, ahead of the
+    # copy holding the conversation that went on from earlier.
+    _run(model, cache, SYSTEM + OLD + MID[:8] + list(range(170, 186)))
+    branch = _slot_of(cache).fork(len(_slot_of(cache).token_ids))
+    _run(model, cache, SYSTEM + OLD + MID + TAIL1)
+    cache._slots.insert(0, branch)
+
+    with caplog.at_level(logging.INFO):
+        _run(model, cache, SYSTEM + MID + TAIL1 + [9, 8, 7] + TAIL2)
+
+    assert "context shift: dropped" in caplog.text
+    assert cache.reused_tokens >= len(SYSTEM) + len(MID) + len(TAIL1)

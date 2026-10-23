@@ -107,7 +107,7 @@ class PromptCache(PromptCacheChats):
                 self._shift_trimmed_chat(architecture, prompt_ids, key, tag)
             best, common, n = self._best_slot(prompt_ids, key)
             if self._tier is not None:
-                restored = self._tier.restore(architecture, prompt_ids, num_ctx, dtype, n)
+                restored = self._tier.restore(architecture, prompt_ids, num_ctx, dtype, n, tag)
                 if restored is not None:
                     self._add(restored)
                     if self._context_shift and tag:
@@ -115,7 +115,7 @@ class PromptCache(PromptCacheChats):
                     best, common, n = self._best_slot(prompt_ids, key)
             if best is not None:
                 self.reused_tokens = n
-                slot = self._take(best, common, n, num_ctx)
+                slot = self._take(best, common, n, num_ctx, tag)
                 slot.prompt_len = len(prompt_ids)
                 slot.in_use = True
                 slot.tag = tag or slot.tag
@@ -141,21 +141,23 @@ class PromptCache(PromptCacheChats):
                 best, best_common, best_n = slot, common, n
         return best, best_common, best_n
 
-    def _take(self, slot: CacheSlot, common: int, n: int, num_ctx: int) -> CacheSlot:
+    def _take(self, slot: CacheSlot, common: int, n: int, num_ctx: int, tag: str = "") -> CacheSlot:
         """Makes `slot`'s first `n` tokens the cache to prefill into and returns the slot holding
         it. In place when the prompt continues this slot's conversation (only the old reply and the
-        end of the last turn are dropped) or little is dropped; otherwise, and always when another
-        reply runs on the slot, a fork, so the slot keeps serving the conversation this prompt
-        doesn't continue. Forks are trimmed to the limits by evicting the least recently used idle
-        slot."""
+        end of the last turn are dropped), little is dropped, or it is the same chat (a deleted or
+        edited message: that branch is never needed again); otherwise, and always when another
+        reply runs on the slot, a fork, so the slot keeps serving the other conversation that shares
+        its start. Forks are trimmed to the limits by evicting the least recently used idle slot."""
         tail = min(self.CONTINUATION_TAIL_TOKENS, slot.prompt_len // 4)
         continues = common >= slot.prompt_len - tail
+        same_chat = bool(tag) and slot.tag == tag
         dropped = len(slot.token_ids) - n
         forkable = self._max_slots > 1
-        wanted = slot.in_use or (not continues and dropped >= self.FORK_MIN_DROPPED_TOKENS)
+        branches = not continues and not same_chat and dropped >= self.FORK_MIN_DROPPED_TOKENS
+        wanted = slot.in_use or branches
         if slot.key[0] < num_ctx:
             bigger = slot.fork(n, num_ctx)
-            if continues and not slot.in_use:
+            if (continues or same_chat) and not slot.in_use:
                 self._slots.remove(slot)
             return self._add(bigger)
         if forkable and wanted:
@@ -218,6 +220,8 @@ class PromptCache(PromptCacheChats):
         slot = self._slot_of(cache)
         if slot is not None:
             slot.in_use = False
+            if slot.tag:  # older idle copies of this chat: this one is its newest state
+                self._slots = [s for s in self._slots if s is slot or s.tag != slot.tag or s.in_use]
             if self._tier is not None:
                 self._tier.checkpoint(slot)
             self._evict_over_limits()

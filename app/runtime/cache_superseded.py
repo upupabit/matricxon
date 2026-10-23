@@ -6,6 +6,7 @@ class _StoredEntry(Protocol):
     model_id: str
     length: int
     blocks: list[str]
+    saved_at: float
     tag: str
 
 
@@ -13,10 +14,10 @@ class SupersededCopies:
     """Older saved copies of a chat that a newly saved one fully covers.
 
     Each time a chat leaves RAM a new file is written, and an older one stayed until it expired
-    (one chat showed as several "saved chats"). A copy is superseded when it is the same chat and
-    model and its tokens are a prefix of the new one's, in either precision: the newest state is the
-    one worth restoring. Another branch of the chat (an edited message) has a different prefix and
-    is kept.
+    (one chat showed as several "saved chats"). Every older copy of the same chat and model is
+    superseded, in either precision: the newest state is the one worth restoring. That includes
+    another branch (a message since deleted or edited, about 160 MB each for a 5000-token chat),
+    which the chat never goes back to.
     """
 
     @staticmethod
@@ -31,8 +32,7 @@ class SupersededCopies:
             if name != new_name
             and old.tag == new.tag
             and old.model_id == new.model_id
-            and old.length <= new.length
-            and old.blocks == new.blocks[: len(old.blocks)]
+            and old.saved_at <= new.saved_at
         ]
 
     @staticmethod
