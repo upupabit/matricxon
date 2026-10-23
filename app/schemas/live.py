@@ -19,6 +19,9 @@ class LiveRequestEntry(BaseModel):
     layer_count: int | None = None
     # Seconds per forward-pass stage; "matmul" overlaps the others (it runs inside them).
     stage_seconds: dict[str, float] = {}
+    # The same, split at the first token: reading the prompt, then writing the reply.
+    prefill_stage_seconds: dict[str, float] = {}
+    decode_stage_seconds: dict[str, float] = {}
     stage_timing: bool = False
 
 

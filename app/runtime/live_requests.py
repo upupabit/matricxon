@@ -31,8 +31,10 @@ class LiveRequest:
         self.finished_at: float | None = None
         self._token_times: deque[float] = deque(maxlen=16)
         self._profiler: StageProfiler | None = None
+        # Stage-time snapshots: prompt reading starts, first token (reading ends), finish.
         self._profile_start: dict[str, float] = {}
-        self._stage_seconds: dict[str, float] | None = None
+        self._profile_first_token: dict[str, float] | None = None
+        self._profile_end: dict[str, float] | None = None
         self._layer_count: int | None = None
         self._times_stages = False
 
@@ -58,6 +60,8 @@ class LiveRequest:
         now = self._clock()
         if self.first_token_at is None:
             self.first_token_at = now
+            if self._profiler is not None:
+                self._profile_first_token = self._profiler.snapshot()
         self.generated_tokens += 1
         self._token_times.append(now)
         self.phase = "decode"
@@ -66,21 +70,36 @@ class LiveRequest:
         """Keeps the numbers, drops the profiler: it holds the model, which must stay unloadable."""
         if self.finished_at is not None:
             return
-        self._stage_seconds = self.stage_seconds()
         if self._profiler is not None:
+            self._profile_end = self._profiler.snapshot()
             self._layer_count = self._profiler.layer_count
             self._times_stages = self._profiler.times_stages
         self._profiler = None
         self.finished_at = self._clock()
         self.phase = "done"
 
+    def _profile_now(self) -> dict[str, float] | None:
+        if self._profile_end is not None:
+            return self._profile_end
+        return self._profiler.snapshot() if self._profiler is not None else None
+
+    @staticmethod
+    def _between(later: dict[str, float], earlier: dict[str, float]) -> dict[str, float]:
+        return {k: round(v - earlier.get(k, 0.0), 4) for k, v in later.items()}
+
     def stage_seconds(self) -> dict[str, float]:
-        if self._stage_seconds is not None:
-            return self._stage_seconds
-        if self._profiler is None:
-            return {}
-        now = self._profiler.snapshot()
-        return {k: round(v - self._profile_start.get(k, 0.0), 4) for k, v in now.items()}
+        now = self._profile_now()
+        return self._between(now, self._profile_start) if now is not None else {}
+
+    def phase_stage_seconds(self) -> tuple[dict[str, float], dict[str, float]]:
+        """Stage times split at the first token: (reading the prompt, writing the reply)."""
+        now = self._profile_now()
+        if now is None:
+            return {}, {}
+        first = self._profile_first_token
+        if first is None:
+            return self._between(now, self._profile_start), {}
+        return self._between(first, self._profile_start), self._between(now, first)
 
     def tokens_per_second(self) -> float | None:
         times = self._token_times
@@ -97,6 +116,7 @@ class LiveRequest:
         end = self.finished_at or self._clock()
         profiler = self._profiler
         running = self.finished_at is None and profiler is not None
+        prefill_stages, decode_stages = self.phase_stage_seconds()
         return LiveRequestEntry(
             request_id=self.request_id,
             model=self.model,
@@ -112,6 +132,8 @@ class LiveRequest:
             layer=profiler.layer if running and profiler.attached else None,
             layer_count=profiler.layer_count if profiler else self._layer_count,
             stage_seconds=self.stage_seconds(),
+            prefill_stage_seconds=prefill_stages,
+            decode_stage_seconds=decode_stages,
             stage_timing=profiler.times_stages if profiler else self._times_stages,
         )
 

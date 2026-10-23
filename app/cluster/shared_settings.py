@@ -25,15 +25,16 @@ TIMERS_KEY = "cluster/timers"
 CACHE_KEY = "cluster/cache"
 
 
-def valid_cache(value: Any) -> tuple[bool, int, int] | None:
-    """(enabled, budget_mb, ttl_hours) from a replicated config value, or None."""
+def valid_cache(value: Any) -> tuple[bool, int, int, int] | None:
+    """(enabled, budget_mb, ttl_hours, save_every_seconds) from a replicated config value, or None.
+    A value written before `save_every_seconds` existed gets its default, 30."""
     try:
         enabled, budget, ttl = value["enabled"], int(value["budget_mb"]), int(value["ttl_hours"])
-    except (KeyError, TypeError, ValueError):
+        save_every = int(value.get("save_every_seconds", 30))
+    except (KeyError, TypeError, ValueError, AttributeError):
         return None
-    return (
-        (enabled, budget, ttl) if isinstance(enabled, bool) and budget >= 0 and ttl >= 1 else None
-    )
+    ok = isinstance(enabled, bool) and budget >= 0 and ttl >= 1 and save_every >= 0
+    return (enabled, budget, ttl, save_every) if ok else None
 
 
 class SharedSettings:
@@ -84,14 +85,18 @@ class SharedSettings:
             return
         store = self._cache()
         policy = store.policy
-        if wanted == (policy.enabled, policy.budget_mb, policy.ttl_hours):
+        if wanted == (
+            policy.enabled,
+            policy.budget_mb,
+            policy.ttl_hours,
+            policy.save_every_seconds,
+        ):
             return
         policy.update(*wanted)
         logger.info(
-            "cluster: saved-chat-cache limits changed: %s, %d MB, keep %d h",
+            "cluster: saved-chat-cache limits changed: %s, %d MB, keep %d h, save every %d s",
             "on" if wanted[0] else "off (saved caches deleted)",
-            wanted[1],
-            wanted[2],
+            *wanted[1:],
         )
         if not policy.enabled:
             store.clear()

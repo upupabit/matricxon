@@ -57,6 +57,8 @@ class NativeGemm:
         lib.mx_gemm.restype = ctypes.c_int
         lib.mx_set_fused_max_tokens.argtypes = [ctypes.c_int]
         lib.mx_set_fused_max_tokens.restype = None
+        lib.mx_set_gemm_row_tile.argtypes = [ctypes.c_int]
+        lib.mx_set_gemm_row_tile.restype = None
         lib.mx_gated_delta_rule.argtypes = [ctypes.c_void_p] * 7 + [ctypes.c_int] * 5
         lib.mx_gated_delta_rule.restype = ctypes.c_int
 
@@ -157,6 +159,10 @@ class NativeGemm:
         """Up to this many tokens per call a K-quant matmul uses its per-token fused kernel instead
         of unpacking each weight row once (mx_gemm.c): what a small decode batch should use."""
         self._lib.mx_set_fused_max_tokens(n_tokens)
+
+    def set_gemm_row_tile(self, rows: int) -> None:
+        """Rows unpacked together on the many-token path (mx_gemm_unpacked.c); for benchmarks."""
+        self._lib.mx_set_gemm_row_tile(rows)
 
     def record(self, seconds: float) -> None:
         """Counts a native call made outside `matmul` (e.g. `MultiGemmPlan`) in `take_stats`."""

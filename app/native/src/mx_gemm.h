@@ -21,5 +21,9 @@ int mx_kernel_for(int ggml_type, int in_features, mx_kernel *k);
 int mx_supports(int ggml_type, int in_features);
 /* The per-row kernel for `n_tokens` tokens, or NULL when the row must be unpacked (or uses dot_f32). */
 mx_vec_dot_fn mx_row_dot(const mx_kernel *k, int n_tokens);
+/* mx_gemm_unpacked.c: the many-token path for unpacking types, rows in cache-sized tiles. */
+int mx_gemm_unpacked(const mx_kernel *k, const uint8_t *w, const mx_block_q8_k *xq, float *y, int n_tokens,
+                     int out_features, int nb, int n_threads);
+void mx_set_gemm_row_tile(int rows);
 
 #endif

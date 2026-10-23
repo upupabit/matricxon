@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     persist_prompt_cache: bool = True
     persist_cache_budget_mb: int = Field(default=4096, ge=0)
     persist_cache_ttl_hours: int = Field(default=168, ge=1)
+    persist_cache_save_seconds: int = Field(default=30, ge=0, le=3600)
     prompt_cache_dir: Path = Path("./data/prompt_cache")
     cache_key: str | None = None
     # Signs the admin routes (cluster reset/configure/provision, voters, pull/delete/copy/create,

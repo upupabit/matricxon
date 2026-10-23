@@ -8,7 +8,7 @@ from torch import nn
 from app.architectures.fused_attention import fused_cached_attention
 from app.architectures.gemma4_ops import _causal_mask, gelu_tanh_mul, rms_norm_no_scale
 from app.architectures.layers import RMSNorm
-from app.architectures.rope import apply_rotary_pos_emb
+from app.architectures.rope import apply_rotary_pos_emb, apply_rotary_pos_emb_one
 from app.architectures.shared_projection import project_shared
 from app.runtime.kv_cache import KVCache
 
@@ -98,7 +98,6 @@ class Gemma4Attention(nn.Module):
 
         q = self.q_norm(self.q_proj(x).view(batch, seq_len, self.n_head, self.head_dim))
         q = q.transpose(1, 2)
-        q, _ = apply_rotary_pos_emb(q, q, cos, sin)
 
         kv_out = None
         if self.has_own_kv:
@@ -111,12 +110,13 @@ class Gemma4Attention(nn.Module):
 
             k = self.k_norm(k_raw).transpose(1, 2)
             v = rms_norm_no_scale(v_raw, self.rms_eps).transpose(1, 2)
-            k, _ = apply_rotary_pos_emb(k, k, cos, sin)
+            q, k = apply_rotary_pos_emb(q, k, cos, sin)
 
             if kv_cache is not None:
                 k, v = kv_cache.update(layer_idx, k, v)
             kv_out = (k, v)
         else:
+            q = apply_rotary_pos_emb_one(q, cos, sin)
             k, v = shared_kv
 
         # enable_gqa: SDPA shares each k/v head across its query-head group itself, with no

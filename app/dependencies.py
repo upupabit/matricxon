@@ -51,6 +51,7 @@ def get_cache_store() -> PersistentCacheStore:
         settings.persist_prompt_cache,
         settings.persist_cache_budget_mb,
         settings.persist_cache_ttl_hours,
+        settings.persist_cache_save_seconds,
     )
     cipher = CacheKeyStore(
         state_dir / "prompt_cache.key", settings.cache_key, settings.cluster_role == "off"

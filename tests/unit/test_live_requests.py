@@ -60,6 +60,43 @@ class TestLiveRequest:
         assert entry.stage_seconds["ffn"] == 0.5
 
 
+class TestPhaseStageSeconds:
+    def test_stage_times_split_at_the_first_token(self) -> None:
+        clock = FakeClock()
+        live = LiveRequest("r1", "m", clock)
+        profiler = StageProfiler.of(ToyModel())
+        live.prefill(reused=0, profiler=profiler)
+        profiler.add("matmul", 3.0)
+        profiler.add("attention", 1.0)
+        live.token()  # reading the prompt ends here
+        profiler.add("matmul", 1.0)
+        profiler.add("ffn", 2.0)
+        live.finish()
+        profiler.add("matmul", 50.0)  # after finish: not counted
+
+        entry = live.entry()
+
+        assert (
+            entry.prefill_stage_seconds["matmul"] == 3.0
+            and entry.prefill_stage_seconds["ffn"] == 0.0
+        )
+        assert (
+            entry.decode_stage_seconds["matmul"] == 1.0 and entry.decode_stage_seconds["ffn"] == 2.0
+        )
+        assert entry.stage_seconds["matmul"] == 4.0
+
+    def test_before_the_first_token_everything_is_prompt_reading(self) -> None:
+        live = LiveRequest("r1", "m", FakeClock())
+        profiler = StageProfiler.of(ToyModel())
+        live.prefill(reused=0, profiler=profiler)
+        profiler.add("matmul", 2.0)
+
+        entry = live.entry()
+
+        assert entry.prefill_stage_seconds["matmul"] == 2.0
+        assert entry.decode_stage_seconds == {}
+
+
 class TestLiveRegistry:
     def test_snapshot_marks_watched_for_a_while(self) -> None:
         clock = FakeClock()

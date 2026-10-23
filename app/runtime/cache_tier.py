@@ -1,4 +1,5 @@
 import logging
+import time
 
 import torch
 
@@ -21,7 +22,30 @@ class ModelCacheTier:
         self._model_id = model_id
 
     def spill(self, slot: CacheSlot) -> None:
+        """Leaving RAM: written unless this exact state is already on disk (`checkpoint`)."""
+        if slot.saved_digest == slot.digest() and self._store.holds_copy(
+            self._model_id, slot.tag, len(slot.token_ids)
+        ):
+            return
         self._store.spill_async(self._model_id, slot)
+
+    def checkpoint(self, slot: CacheSlot) -> None:
+        """After a reply, at most every `save_every_seconds`: a copy of the chat goes to disk in
+        the background, so a crash or a forced stop loses at most the last few replies, not the
+        whole chat (it used to be written only on eviction, unload and shutdown). The copy is
+        taken here, under the pool's lock; serializing and writing run on the store's writer."""
+        policy = self._store.policy
+        if not slot.tag or not policy.enabled or policy.save_every_seconds <= 0:
+            return
+        if time.monotonic() - slot.saved_at < policy.save_every_seconds:
+            return  # the copy on disk is a prefix of this chat: restoring it still reuses most
+        digest = slot.digest()
+        if digest == slot.saved_digest:
+            return
+        state = SlotCodec.capture(slot)
+        if state is not None:
+            slot.saved_digest, slot.saved_at = digest, time.monotonic()
+            self._store.checkpoint_async(self._model_id, state, slot.tag)
 
     def restore(
         self,

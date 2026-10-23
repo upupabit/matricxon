@@ -19,6 +19,11 @@ class CacheSlot:
     prompt_len: int = 0
     in_use: bool = False
     tag: str = ""
+    saved_digest: int | None = None  # `digest()` of the state last copied to disk (cache_tier.py)
+    saved_at: float = float("-inf")  # time.monotonic() of that copy
+
+    def digest(self) -> int:
+        return hash((tuple(self.token_ids), tuple(self.snapshots)))
 
     @property
     def hybrid(self) -> bool:

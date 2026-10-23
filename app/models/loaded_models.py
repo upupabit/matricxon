@@ -1,4 +1,5 @@
 import logging
+import time
 
 from app.models.handle import ModelHandle
 from app.runtime.memory_trim import memory_trimmer
@@ -80,7 +81,13 @@ class LoadedModels:
         """Drops a handle for good: its idle cached conversations go to the disk tier first (a
         background write; the slots are independent of the weights closed right after)."""
         logger.info("unloading %s: %s", handle.tag, reason)
+        started = time.monotonic()
         handle.prompt_cache.persist_all()
         handle.worker.shutdown()
+        stopped = time.monotonic()
         handle.architecture.close()
         memory_trimmer.schedule()
+        logger.info(
+            "unloaded %s: worker stopped in %.1fs, weights closed in %.1fs",
+            handle.tag, stopped - started, time.monotonic() - stopped,
+        )  # fmt: skip

@@ -26,6 +26,7 @@ class CachePersistenceHandler:
             enabled=policy.enabled,
             budget_mb=policy.budget_mb,
             ttl_hours=policy.ttl_hours,
+            save_every_seconds=policy.save_every_seconds,
             files=files,
             chats=self._store.chat_count(),
             used_bytes=used,
@@ -34,7 +35,9 @@ class CachePersistenceHandler:
         )
 
     def update(self, change: CachePersistenceUpdate) -> CachePersistenceStatus:
-        self._store.policy.update(change.enabled, change.budget_mb, change.ttl_hours)
+        self._store.policy.update(
+            change.enabled, change.budget_mb, change.ttl_hours, change.save_every_seconds
+        )
         if not self._store.policy.enabled:
             self._store.clear()
         self._store.enforce_limits()

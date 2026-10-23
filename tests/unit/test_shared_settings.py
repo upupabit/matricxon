@@ -94,10 +94,13 @@ def test_the_same_folders_change_nothing(tmp_path):
 
 class FakePolicy:
     def __init__(self) -> None:
-        self.enabled, self.budget_mb, self.ttl_hours = True, 2048, 168
+        self.enabled, self.budget_mb, self.ttl_hours, self.save_every_seconds = True, 2048, 168, 30
 
-    def update(self, enabled: bool, budget_mb: int, ttl_hours: int) -> None:
+    def update(
+        self, enabled: bool, budget_mb: int, ttl_hours: int, save_every_seconds: int
+    ) -> None:
         self.enabled, self.budget_mb, self.ttl_hours = enabled, budget_mb, ttl_hours
+        self.save_every_seconds = save_every_seconds
 
 
 class FakeStore:
@@ -123,7 +126,15 @@ def test_replicated_cache_limits_are_applied_once(tmp_path):
     shared.tick()
     shared.tick()
     assert (store.policy.budget_mb, store.policy.ttl_hours) == (512, 24)
+    assert store.policy.save_every_seconds == 30  # a value from before the setting existed
     assert store.enforced == 1 and store.cleared == 0
+
+
+def test_replicated_save_interval_is_applied(tmp_path):
+    value = {"enabled": True, "budget_mb": 2048, "ttl_hours": 168, "save_every_seconds": 5}
+    shared, store = _with_cache(tmp_path, value)
+    shared.tick()
+    assert store.policy.save_every_seconds == 5
 
 
 def test_turning_the_cache_off_through_the_cluster_deletes_what_was_saved(tmp_path):

@@ -1,4 +1,4 @@
-/* Entry point: y = x @ W.T for a packed GGUF weight W, called via ctypes (app/native/gemm.py). Covers decode (n_tokens == 1) and prefill: every activation row is quantized to Q8_K once, then output rows are split across OpenMP threads. K-quant rows are unpacked once (mx_block_unpacked) and reused for every token while hot in cache. */
+/* Entry point: y = x @ W.T for a packed GGUF weight W, called via ctypes (app/native/gemm.py). Covers decode (n_tokens == 1) and prefill: every activation row is quantized to Q8_K once, then output rows are split across OpenMP threads. Past the fused kernel's range, K-quant rows are unpacked in tiles and reused for every token while hot in cache (mx_gemm_unpacked.c). */
 #include <stdlib.h>
 
 #include "mx_gemm.h"
@@ -173,27 +173,7 @@ int mx_gemm(int ggml_type, const uint8_t *w, const float *x, float *y, int n_tok
             }
         }
     } else {
-#pragma omp parallel num_threads(n_threads)
-        {
-            /* One unpacked row per thread: nb * 328 bytes, e.g. 10 KB for in_features 8192. */
-            mx_block_unpacked *wu = malloc((size_t)nb * sizeof(mx_block_unpacked));
-            if (wu == NULL) {
-#pragma omp atomic write
-                status = -2;
-            }
-#pragma omp for schedule(dynamic, MX_ROW_CHUNK)
-            for (int o = 0; o < out_features; ++o) {
-                if (wu == NULL) {
-                    continue;
-                }
-                k.unpack(w + (size_t)o * k.row_bytes, wu, nb);
-                for (int t = 0; t < n_tokens; ++t) {
-                    y[(size_t)t * out_features + o] =
-                        mx_dot_unpacked(wu, xq + (size_t)t * nb, nb, k.has_min);
-                }
-            }
-            free(wu);
-        }
+        status = mx_gemm_unpacked(&k, w, xq, y, n_tokens, out_features, nb, n_threads);
     }
 
     free(xq);

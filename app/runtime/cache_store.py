@@ -1,54 +1,32 @@
 import json
 import logging
-import os
 import struct
-import tempfile
 import threading
 import time
-import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass
 from pathlib import Path
 
-import torch
-
 from app.runtime.cache_crypto import CacheCipher, CacheDecryptError
+from app.runtime.cache_files import MAGIC, SUFFIX, StoredEntry
 from app.runtime.cache_policy import PersistencePolicy
+from app.runtime.cache_reader import CacheReader
 from app.runtime.cache_superseded import SupersededCopies
-from app.runtime.prompt_slot import CacheSlot
-from app.runtime.slot_codec import EncodedSlot, SlotCodec
+from app.runtime.cache_writer import CacheWriter
+from app.runtime.slot_codec import SlotState
 
 logger = logging.getLogger(__name__)
 
-MAGIC = b"MXC1"
-SUFFIX = ".mxc"
 # Token granularity of prefix matching between a saved cache and a new prompt.
 BLOCK_TOKENS = 64
 
-
-@dataclass
-class _Entry:
-    """What the store knows about a file without reading its body (sealed in its header)."""
-
-    model_id: str
-    num_ctx: int
-    dtype_name: str
-    length: int
-    blocks: list[str]
-    saved_at: float
-    tag: str = ""
-    size: int = 0
-
-    def meta_json(self) -> bytes:
-        return json.dumps({k: v for k, v in asdict(self).items() if k != "size"}).encode()
+__all__ = ["BLOCK_TOKENS", "MAGIC", "SUFFIX", "PersistentCacheStore", "StoredEntry"]
 
 
-StoredEntry = _Entry
-
-
-class PersistentCacheStore:
+class PersistentCacheStore(CacheWriter, CacheReader):
     """Encrypted, size- and age-limited prompt-cache files on disk: the tier below the RAM pool.
+    Writing is in cache_writer.py, restoring in cache_reader.py; this class owns the directory
+    index, the limits and the admin actions.
 
     A slot is written when the pool evicts it, when its model unloads and on shutdown, never during
     a reply. File layout: `MAGIC | len | sealed meta | sealed body`, both AES-256-GCM sealed (body
@@ -83,9 +61,11 @@ class PersistentCacheStore:
         self.may_clean: Callable[[], bool] = lambda: True
         self._rejected: set[str] = set()
         self._lock = threading.Lock()
-        self._index: dict[str, _Entry] = {}
+        self._index: dict[str, StoredEntry] = {}
         self._forgotten: set[str] = set()
         self._writer = ThreadPoolExecutor(max_workers=1, thread_name_prefix="cache-spill")
+        self._checkpoints: dict[tuple[str, str], SlotState] = {}  # newest copy waiting per chat
+        self._spills_pending = 0  # chats leaving RAM, not yet on disk
         self._dir.mkdir(parents=True, exist_ok=True)
         self._scan()
         self.enforce_limits()
@@ -134,146 +114,16 @@ class PersistentCacheStore:
         if time.monotonic() - self._last_scan >= self._rescan_seconds:
             self._refresh()
 
-    def _read_meta(self, path: Path) -> _Entry:
+    def _block_tokens(self) -> int:
+        return BLOCK_TOKENS  # read at call time: tests shrink it
+
+    def _read_meta(self, path: Path) -> StoredEntry:
         with path.open("rb") as handle:
             if handle.read(len(MAGIC)) != MAGIC:
                 raise ValueError("not a cache file")
             (meta_len,) = struct.unpack(">I", handle.read(4))
             meta = json.loads(self._cipher.open(handle.read(meta_len), MAGIC))
-        return _Entry(**meta, size=path.stat().st_size)
-
-    # writing
-
-    def spill_async(self, model_id: str, slot: CacheSlot) -> None:
-        """Queues `slot` for the background writer to encode and write; the caller must not touch
-        the slot afterwards (the pool has dropped it)."""
-        if self.policy.enabled and self.policy.budget_bytes > 0:
-            self._writer.submit(self._spill, model_id, slot)
-
-    def flush(self) -> None:
-        """Blocks until every queued spill is on disk (shutdown)."""
-        self._writer.submit(lambda: None).result()
-
-    def _spill(self, model_id: str, slot: CacheSlot) -> None:
-        try:
-            encoded = SlotCodec.encode(slot)
-            if encoded is not None and slot.tag not in self._forgotten:
-                self._write(model_id, encoded, slot.tag)
-        except Exception:  # noqa: BLE001 - a failed spill only costs a later re-prefill
-            logger.exception("persisting a prompt cache failed")
-
-    def _write(self, model_id: str, encoded: EncodedSlot, tag: str = "") -> None:
-        entry = _Entry(
-            model_id,
-            encoded.num_ctx,
-            encoded.dtype_name,
-            len(encoded.token_ids),
-            self._cipher.prefix_fingerprints(encoded.token_ids, BLOCK_TOKENS),
-            time.time(),
-            tag,
-        )
-        meta = self._cipher.seal(entry.meta_json(), MAGIC)
-        body = self._cipher.seal(encoded.payload, MAGIC + meta)
-        blob = MAGIC + struct.pack(">I", len(meta)) + meta + body
-        if len(blob) > self.policy.budget_bytes:
-            return
-        fd, tmp = tempfile.mkstemp(dir=self._dir, prefix=f"{self._node_id}-", suffix=".tmp")
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(blob)
-        name = f"{uuid.uuid4().hex}{SUFFIX}"
-        os.replace(tmp, self._dir / name)
-        entry.size = len(blob)
-        with self._lock:
-            self._index[name] = entry
-            gone = tag in self._forgotten
-            superseded = SupersededCopies.find(name, entry, list(self._index.items()))
-        if gone:
-            self._remove(name)
-        for old in superseded:
-            self._remove(old)
-        self.enforce_limits()
-
-    # restoring
-
-    def take(
-        self,
-        model_id: str,
-        prompt_ids: list[int],
-        dtype: torch.dtype,
-        min_tokens: int,
-    ) -> tuple[bytes, str] | None:
-        """The serialized slot sharing the longest prefix (more than `min_tokens`) with
-        `prompt_ids`, removed from disk, with the chat tag it was saved under, or None. Matching
-        uses the sealed per-block hashes, so a file that wouldn't help is never read, let alone
-        consumed."""
-        if not self.policy.enabled:
-            return None
-        # A save still being written (e.g. this model's own unload a moment ago) would be missed.
-        self.flush()
-        self._rescan_if_due()
-        wanted = self._cipher.prefix_fingerprints(prompt_ids, BLOCK_TOKENS)
-        best = self._best_match(model_id, dtype, wanted, min_tokens)
-        if best is None and time.monotonic() - self._last_scan >= self.MISS_RESCAN_SECONDS:
-            self._refresh()
-            best = self._best_match(model_id, dtype, wanted, min_tokens)
-        if best is None:
-            return None
-        body = self._consume(best[1])
-        return None if body is None else (body, best[2])
-
-    def _best_match(
-        self, model_id: str, dtype: torch.dtype, wanted: list[str], min_tokens: int
-    ) -> tuple[int, str, str] | None:
-        """(shared blocks, file name, chat tag) of the stored file sharing the longest prefix. Any
-        precision: a restore converts it (`KVCache.load`); on a tie the same precision wins."""
-        best: tuple[int, str, str] | None = None
-        best_same_dtype = False
-        with self._lock:
-            for name, entry in self._index.items():
-                if entry.model_id != model_id:
-                    continue
-                shared = 0
-                for mine, theirs in zip(wanted, entry.blocks, strict=False):
-                    if mine != theirs:
-                        break
-                    shared += 1
-                same_dtype = entry.dtype_name == str(dtype)
-                if shared * BLOCK_TOKENS > min_tokens and (
-                    best is None
-                    or shared > best[0]
-                    or (shared == best[0] and same_dtype and not best_same_dtype)
-                ):
-                    best = (shared, name, entry.tag)
-                    best_same_dtype = same_dtype
-        return best
-
-    def inspect(self, prompt_ids: list[int]) -> tuple[list[StoredEntry], list[str]]:
-        """The files' headers plus `prompt_ids`' block hashes, to explain a miss."""
-        with self._lock:
-            entries = list(self._index.values())
-        return entries, self._cipher.prefix_fingerprints(prompt_ids, BLOCK_TOKENS)
-
-    def _consume(self, name: str) -> bytes | None:
-        """Claims the file by renaming it (atomic: of several nodes, one wins), reads, deletes."""
-        path = self._dir / f"{name}{self._claim_suffix}"
-        try:
-            os.replace(self._dir / name, path)
-        except FileNotFoundError:
-            with self._lock:
-                self._index.pop(name, None)
-            return None
-        try:
-            with path.open("rb") as handle:
-                handle.seek(len(MAGIC))
-                (meta_len,) = struct.unpack(">I", handle.read(4))
-                meta = handle.read(meta_len)
-                body = self._cipher.open(handle.read(), MAGIC + meta)
-        except (CacheDecryptError, OSError, struct.error):
-            logger.warning("prompt-cache file %s unreadable, dropping it", name)
-            self._remove(name, path)
-            return None
-        self._remove(name, path)
-        return body
+        return StoredEntry(**meta, size=path.stat().st_size)
 
     # limits and admin
 

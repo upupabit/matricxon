@@ -40,9 +40,10 @@ def small_blocks(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _node(tmp_path: Path, name: str) -> ModelManager:
     """A node: its own manager and store object, one cache directory shared with the other nodes."""
-    store = PersistentCacheStore(
-        tmp_path / "shared-cache", CacheCipher(KEY), PersistencePolicy(True, 100, 24), node_id=name
-    )
+    # Saved only when a chat leaves RAM (no copies after replies), so the files on disk are the
+    # handed-off chats alone.
+    policy = PersistencePolicy(True, 100, 24, save_every_seconds=0)
+    store = PersistentCacheStore(tmp_path / "shared-cache", CacheCipher(KEY), policy, node_id=name)
     return ModelManager(
         ModelCatalog(tmp_path / "models"), max_loaded=1, cache_store=store, prompt_cache_slots=4
     )

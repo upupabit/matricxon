@@ -100,7 +100,7 @@ def _integer_activations(n_tokens: int, in_features: int, seed: int) -> torch.Te
 
 
 @pytest.mark.parametrize("ggml_type", list(_BLOCKS))
-@pytest.mark.parametrize("n_tokens", [1, 3])
+@pytest.mark.parametrize("n_tokens", [1, 3, 37])  # 37: past the fused range, the tiled unpack path
 def test_exact_on_int8_representable_activations(
     gemm: NativeGemm, ggml_type: T, n_tokens: int
 ) -> None:
@@ -181,9 +181,32 @@ def test_decode_kernel_is_bit_identical_to_the_prefill_path(gemm: NativeGemm, gg
     was computed in prefill or decode."""
     out_f, in_f = 9, 768
     raw = memoryview(_weight(ggml_type, out_f, in_f, seed=77))
-    x = torch.randn(6, in_f, generator=torch.Generator().manual_seed(5))
+    x = torch.randn(12, in_f, generator=torch.Generator().manual_seed(5))  # 12 > 8: the unpack path
 
     prefill = gemm.matmul(ggml_type, raw, x, out_f, in_f)
 
-    for t in range(6):
+    for t in range(12):
         assert torch.equal(gemm.matmul(ggml_type, raw, x[t : t + 1], out_f, in_f)[0], prefill[t])
+
+
+@pytest.mark.parametrize("ggml_type", list(_BLOCKS))
+def test_row_tiles_change_nothing(gemm: NativeGemm, ggml_type: T) -> None:
+    """The many-token path unpacks rows in tiles (mx_gemm_unpacked.c); any tile size, including
+    one that leaves a partial last tile, must give bit-identical output."""
+    out_f, in_f = 21, 512
+    raw = memoryview(_weight(ggml_type, out_f, in_f, seed=31))
+    x = torch.randn(37, in_f, generator=torch.Generator().manual_seed(9))
+    results = []
+    try:
+        for rows in (1, 3, 8, 64):
+            gemm.set_gemm_row_tile(rows)
+            results.append(gemm.matmul(ggml_type, raw, x, out_f, in_f))
+    finally:
+        gemm.set_gemm_row_tile(8)
+
+    assert all(torch.equal(results[0], other) for other in results[1:])
+    expected = _reference(ggml_type, raw, x, out_f, in_f)
+    rel_err = torch.linalg.norm(results[0].to(torch.float64) - expected) / torch.linalg.norm(
+        expected
+    )
+    assert rel_err < 1e-2

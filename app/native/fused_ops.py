@@ -165,23 +165,24 @@ class FusedOps:
         self._backend.rms_norm(rows, weight.detach().contiguous(), out, eps)
         return out.view(x.shape)
 
-    def rope(self, q, k, cos, sin) -> tuple[torch.Tensor, torch.Tensor] | None:
-        """q (1, H, T, D), k (1, Hkv, T, D): views of a projection, any strides; cos/sin (T, D).
-        Returns new contiguous tensors, like the torch version."""
-        if not _is_f32_cpu(q, k, cos, sin) or q.dim() != 4 or q.shape[0] != 1 or cos.dim() != 2:
+    def rope(self, q, k, cos, sin) -> tuple[torch.Tensor, torch.Tensor | None] | None:
+        """q (1, H, T, D), k (1, Hkv, T, D) or None: views of a projection, any strides; cos/sin
+        (T, D). Returns new contiguous tensors, like the torch version."""
+        tensors = (q,) if k is None else (q, k)
+        if not _is_f32_cpu(*tensors, cos, sin) or cos.dim() != 2 or cos.shape != sin.shape:
             return None
-        if k.shape[0] != 1 or q.shape[-1] % 2 or cos.shape != (q.shape[2], q.shape[3]):
+        if any(x.dim() != 4 or x.shape[0] != 1 or x.shape[2:] != q.shape[2:] for x in tensors):
             return None
-        if k.shape[2] != q.shape[2] or k.shape[3] != q.shape[3] or cos.shape != sin.shape:
+        if q.shape[-1] % 2 or cos.shape != (q.shape[2], q.shape[3]):
             return None
         cos, sin = cos.contiguous(), sin.contiguous()
         outputs = []
-        for x in (q, k):
+        for x in tensors:
             x = x[0] if x.stride(-1) == 1 else x[0].contiguous()
             out = torch.empty(x.shape, dtype=torch.float32)
             self._backend.rope(x, out, cos, sin)
             outputs.append(out.unsqueeze(0))
-        return outputs[0], outputs[1]
+        return outputs[0], (outputs[1] if k is not None else None)
 
     def attention(
         self, q, k, v, offset: object, scale: float, window: int = 0

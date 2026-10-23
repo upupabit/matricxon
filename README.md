@@ -169,6 +169,7 @@ variables win). All of them are listed in `app/config.py`.
 | `MATRICXON_PERSIST_PROMPT_CACHE` | `true` | Keep chat caches on disk (first-run default; runtime changes are saved in `prompt_cache_policy.json`) |
 | `MATRICXON_PERSIST_CACHE_BUDGET_MB` | `4096` | Disk space for saved caches |
 | `MATRICXON_PERSIST_CACHE_TTL_HOURS` | `168` | Hours before a saved cache expires |
+| `MATRICXON_PERSIST_CACHE_SAVE_SECONDS` | `30` | A chat still in memory is copied to disk after a reply at most this often, so a crash keeps it; `0` saves only when it leaves memory |
 | `MATRICXON_PROMPT_CACHE_DIR` | `./data/prompt_cache` | Where saved caches and the generated `prompt_cache.key` live |
 | `MATRICXON_CACHE_KEY` | generated | Encryption key; set it to supply your own instead of the generated file |
 | `MATRICXON_LOG_LEVEL` | `0` | `0` warnings, `1` per-request steps, `2` per-layer trace |

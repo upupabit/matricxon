@@ -120,7 +120,9 @@ class ModelWorker:
         `ModelManager.unload` called `request_stop` then `architecture.close` on another
         thread while this worker could be mid-`forward` reading a `QuantizedLinear`'s raw-mmap
         view; `mmap.close` crashed with `BufferError: cannot close exported pointers exist`."""
-        self._idle_event.wait()
+        if not self._idle_event.wait(timeout=1.0):
+            logger.info("waiting for the running reply to stop before unloading")
+            self._idle_event.wait()
 
     # submitting a reply
 

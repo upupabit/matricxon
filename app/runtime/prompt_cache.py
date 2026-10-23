@@ -1,39 +1,19 @@
-import functools
 import logging
 import threading
-from collections.abc import Callable
-from typing import Concatenate, ParamSpec, TypeVar
 
 import torch
 
 from app.architectures.base import ModelArchitecture
-from app.runtime.cache_miss_diagnosis import CacheMissDiagnosis
 from app.runtime.cache_tier import ModelCacheTier
 from app.runtime.kv_cache import KVCache
 from app.runtime.mamba_cache import NemotronHHybridCache
+from app.runtime.prompt_cache_chats import PromptCacheChats, locked
 from app.runtime.prompt_slot import CacheSlot
 
 logger = logging.getLogger(__name__)
 
-P = ParamSpec("P")
-R = TypeVar("R")
 
-
-def _locked(
-    method: Callable[Concatenate["PromptCache", P], R],
-) -> Callable[Concatenate["PromptCache", P], R]:
-    """Runs a PromptCache method under its lock: the worker thread uses the pool while HTTP threads
-    ask about, or spill, a chat (cluster routing)."""
-
-    @functools.wraps(method)
-    def wrapper(self: "PromptCache", *args: P.args, **kwargs: P.kwargs) -> R:
-        with self._lock:
-            return method(self, *args, **kwargs)
-
-    return wrapper
-
-
-class PromptCache:
+class PromptCache(PromptCacheChats):
     """A model's cached conversations, so a chat's next turn computes only new tokens. pAIring
     resends the whole conversation each turn; without this every turn re-ran prefill over all of it
     (turn 2 of a two-turn chat prefilled 70 tokens in 12 s, where Ollama, reusing its cache,
@@ -101,14 +81,14 @@ class PromptCache:
     def budget_bytes(self) -> int:
         return self._budget_bytes
 
-    @_locked
+    @locked
     def set_limits(self, max_slots: int, budget_bytes: int) -> None:
         """New limits without a restart; evicts (to disk, if any) down to them now."""
         self._max_slots = max(1, max_slots)
         self._budget_bytes = budget_bytes
         self._evict_over_limits()
 
-    @_locked
+    @locked
     def acquire(
         self,
         architecture: ModelArchitecture,
@@ -146,44 +126,6 @@ class PromptCache:
             slot = self._add(CacheSlot(cache, key, prompt_len=len(prompt_ids), tag=tag))
             slot.in_use = True
         return cache, 0
-
-    def _shift_trimmed_chat(
-        self,
-        architecture: ModelArchitecture,
-        prompt_ids: list[int],
-        key: tuple[int, torch.dtype],
-        tag: str,
-    ) -> None:
-        """If this chat's cached prompt is the new one with its oldest messages trimmed away, cuts
-        those tokens out of the cache (re-rotating the rest) instead of re-reading the chat.
-        Approximate: the kept tokens were read while the dropped ones were visible, so they carry a
-        trace of them, the trade llama.cpp's context shifting makes."""
-        for slot in self._slots:
-            if slot.tag != tag or slot.key[1] != key[1] or slot.in_use:
-                continue
-            gap = slot.find_gap(prompt_ids)
-            if gap is None:
-                continue
-            keep, dropped, run = gap
-            rotations = architecture.context_shift_rotations(dropped)
-            if rotations is None:
-                return
-            slot.shift_out(keep, dropped, rotations)
-            logger.info(
-                "context shift: dropped %d trimmed tokens after the first %d, kept the next %d",
-                dropped,
-                keep,
-                run,
-            )
-            return
-
-    def _explain_miss(self, prompt_ids: list[int], key: tuple[int, torch.dtype], tag: str) -> str:
-        parts = [CacheMissDiagnosis.ram(self._slots, prompt_ids, key, tag)]
-        if self._tier is not None:
-            parts.append(self._tier.explain(prompt_ids, key[1], tag))
-        return "; ".join(
-            f"{label}: {text}" for label, text in zip(("RAM", "disk"), parts, strict=False)
-        )
 
     def _best_slot(
         self, prompt_ids: list[int], key: tuple[int, torch.dtype]
@@ -249,7 +191,7 @@ class PromptCache:
     def _slot_of(self, cache: object) -> CacheSlot | None:
         return next((s for s in self._slots if s.cache is cache), None)
 
-    @_locked
+    @locked
     def advanced(self, cache: object, token_ids: list[int]) -> None:
         """Records tokens whose keys/values were just committed to `cache` (after
         `KVCache.advance`). A no-op for a cache the pool isn't holding."""
@@ -257,7 +199,7 @@ class PromptCache:
         if slot is not None:
             slot.token_ids.extend(token_ids)
 
-    @_locked
+    @locked
     def capture(self, cache: object) -> None:
         """Snapshots a hybrid `cache`'s recurrent state at its current length (a no-op for any other
         cache, or one the pool isn't holding), keeping the slot's newest few."""
@@ -269,37 +211,13 @@ class PromptCache:
             del slot.snapshots[pos]
         self._evict_over_limits(keep=slot)
 
-    @_locked
+    @locked
     def release(self, cache: object) -> None:
         """The reply that acquired `cache` has finished (or stopped): its slot may be evicted or
         reused again, and any limit exceeded while it was busy is enforced now."""
         slot = self._slot_of(cache)
         if slot is not None:
             slot.in_use = False
+            if self._tier is not None:
+                self._tier.checkpoint(slot)
             self._evict_over_limits()
-
-    @_locked
-    def holds(self, tag: str) -> bool:
-        """Does this pool hold a conversation of the chat `tag` (idle or in use)?"""
-        return bool(tag) and any(slot.tag == tag for slot in self._slots)
-
-    @_locked
-    def spill_chat(self, tag: str) -> int:
-        """Moves the chat's idle conversations from RAM to the disk tier (the model stays loaded) so
-        another node can pick them up. Returns how many; one still replying stays."""
-        if self._tier is None or not tag:
-            return 0
-        moving = [s for s in self._slots if s.tag == tag and not s.in_use]
-        for slot in moving:
-            self._slots.remove(slot)
-            self._tier.spill(slot)
-        return len(moving)
-
-    @_locked
-    def persist_all(self) -> None:
-        """Queues every idle slot for the disk tier: the model is unloading or the server shutting
-        down, so nothing else will use these RAM copies."""
-        if self._tier is not None:
-            for slot in self._slots:
-                if not slot.in_use:
-                    self._tier.spill(slot)

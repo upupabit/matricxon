@@ -169,6 +169,20 @@ def apply_rotary_pos_emb(
     return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
 
 
+def apply_rotary_pos_emb_one(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
+    """`apply_rotary_pos_emb` for one tensor (a layer that reuses another layer's keys)."""
+    ops = FusedOps.active()
+    fused = ops.rope(x, None, cos, sin) if ops is not None else None
+    if fused is not None:
+        return fused[0]
+    if cos.dim() == 3:
+        cos, sin = cos.unsqueeze(1), sin.unsqueeze(1)
+    else:
+        cos, sin = cos.unsqueeze(0).unsqueeze(0), sin.unsqueeze(0).unsqueeze(0)
+    cos, sin = cos.to(x.dtype), sin.to(x.dtype)
+    return (x * cos) + (rotate_half(x) * sin)
+
+
 def apply_rotary_pos_emb_partial(
     q: torch.Tensor, k: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor
 ) -> tuple[torch.Tensor, torch.Tensor]:

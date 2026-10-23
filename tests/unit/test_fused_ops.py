@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 
 from app.architectures.layers import RMSNorm
-from app.architectures.rope import rotate_half
+from app.architectures.rope import apply_rotary_pos_emb_one, rotate_half
 from app.native.fused_ops import FusedOps, _NativeBackend, _NumbaBackend
 from app.native.library import NativeKernelLibrary
 from app.runtime.generation_request import SamplingConfig
@@ -55,6 +55,20 @@ class TestRope:
         for got, x in zip(fused, (q, k), strict=True):
             expected = x * cos + rotate_half(x) * sin
             assert torch.allclose(got, expected, atol=1e-5, rtol=1e-5)
+
+    @pytest.mark.parametrize("tokens", [1, 5])
+    def test_single_tensor_matches_the_pair(
+        self, ops: FusedOps, tokens: int, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        torch.manual_seed(2)
+        q = torch.randn(1, tokens, 4, 16).transpose(1, 2)
+        emb = torch.randn(tokens, 8).repeat(1, 2)
+        cos, sin = emb.cos(), emb.sin()
+        single, no_k = ops.rope(q, None, cos, sin)
+        assert no_k is None
+        assert torch.equal(single, ops.rope(q, q, cos, sin)[0])
+        monkeypatch.setattr(FusedOps, "_active", None)  # the torch path
+        assert torch.allclose(apply_rotary_pos_emb_one(q, cos, sin), single, atol=1e-5)
 
     def test_declines_batched_cos(self, ops: FusedOps) -> None:
         q = torch.randn(1, 2, 1, 8)

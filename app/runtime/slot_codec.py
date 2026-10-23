@@ -21,6 +21,15 @@ class EncodedSlot:
     payload: bytes
 
 
+@dataclass
+class SlotState:
+    """A slot's saved part, copied out (`SlotCodec.capture`) and not yet serialized."""
+
+    tensors: dict
+    num_ctx: int
+    dtype_name: str
+
+
 class SlotCodec:
     """Turns a `CacheSlot` into bytes and back. Only what a later request can reuse is written: a
     plain cache's whole KV; a hybrid cache's KV up to its newest recurrent snapshot (past that
@@ -30,10 +39,18 @@ class SlotCodec:
     @staticmethod
     def encode(slot: CacheSlot) -> EncodedSlot | None:
         """None when the slot isn't worth persisting (too short, or a hybrid without snapshots)."""
+        state = SlotCodec.capture(slot)
+        return None if state is None else SlotCodec.serialize(state)
+
+    @staticmethod
+    def capture(slot: CacheSlot) -> SlotState | None:
+        """A copy of what `encode` writes, independent of the slot from then on (the KV is cloned),
+        so it can be serialized on another thread while the slot serves the next reply."""
         keep = max(slot.snapshots, default=0) if slot.hybrid else len(slot.token_ids)
         if keep < MIN_PERSIST_TOKENS:
             return None
         keys, values = slot.cache.export(keep)
+        num_ctx, dtype = slot.key
         state = {
             "token_ids": slot.token_ids[:keep],
             "prompt_len": min(slot.prompt_len, keep),
@@ -44,10 +61,15 @@ class SlotCodec:
                 for s in slot.snapshots.values()
             ],
         }
+        return SlotState(state, num_ctx, str(dtype))
+
+    @staticmethod
+    def serialize(state: SlotState) -> EncodedSlot:
         buffer = io.BytesIO()
-        torch.save(state, buffer)
-        num_ctx, dtype = slot.key
-        return EncodedSlot(state["token_ids"], num_ctx, str(dtype), buffer.getvalue())
+        torch.save(state.tensors, buffer)
+        return EncodedSlot(
+            state.tensors["token_ids"], state.num_ctx, state.dtype_name, buffer.getvalue()
+        )
 
     @staticmethod
     def decode(

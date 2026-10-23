@@ -111,7 +111,12 @@ def test_policy_works_on_any_policy_store(tmp_path: Path) -> None:
     store = _MemoryStore()
     policy = PersistencePolicy.from_store(store, True, 100, 24)
     policy.update(budget_mb=9)
-    assert store.data == {"enabled": True, "budget_mb": 9, "ttl_hours": 24}
+    assert store.data == {
+        "enabled": True,
+        "budget_mb": 9,
+        "ttl_hours": 24,
+        "save_every_seconds": 30,
+    }
     assert PersistencePolicy.from_store(store, False, 1, 1).budget_mb == 9
 
 
