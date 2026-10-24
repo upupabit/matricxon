@@ -2,6 +2,37 @@
   <img src="assets/matricxon-logo.svg" alt="Matricxon - LLM inference runtime" width="460">
 </h1>
 
+<br>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python">
+  <img src="https://img.shields.io/badge/FastAPI-async-009688" alt="FastAPI">
+  <img src="https://img.shields.io/badge/self--hosted-yes-purple" alt="Self-hosted">
+  <img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License">
+  <img src="https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&logoColor=white" alt="PyTorch">
+  <img src="https://img.shields.io/badge/models-GGUF-7C3AED" alt="GGUF">
+  <img src="https://img.shields.io/badge/quantization-25_types-8B5CF6" alt="Quantization">
+  <img src="https://img.shields.io/badge/model_families-16-6366F1" alt="Model families">
+  <img src="https://img.shields.io/badge/C_kernels-AVX_%7C_AVX2_%7C_VNNI_%7C_NEON-0369A1" alt="Native C kernels">
+  <img src="https://img.shields.io/badge/parallel-OpenMP-0EA5E9" alt="OpenMP">
+  <img src="https://img.shields.io/badge/fallback-Numba-00A3E0" alt="Numba">
+  <img src="https://img.shields.io/badge/vision-image_input-EC4899" alt="Vision">
+  <img src="https://img.shields.io/badge/cluster-consensus_(beta)-14B8A6" alt="Cluster">
+  <img src="https://img.shields.io/badge/prompt_cache-encrypted_on_disk-10B981" alt="Prompt cache">
+  <img src="https://img.shields.io/badge/context_shift-yes-22C55E" alt="Context shift">
+  <img src="https://img.shields.io/badge/GPU-CUDA_%7C_MPS-EC4899" alt="GPU">
+  <img src="https://img.shields.io/badge/API-REST_%2B_streaming-009688" alt="Streaming API">
+  <img src="https://img.shields.io/badge/tests-1%2C070%2B_pytest-22C55E" alt="Tests">
+  <img src="https://img.shields.io/badge/code_style-ruff-261230" alt="Ruff">
+</p>
+
+<br>
+
+> [!IMPORTANT]
+> **Under active development.** Matricxon is updated every few days with new features and fixes. Pull often to stay current, and check the [GitHub commits](https://github.com/upupabit/matricxon/commits/main) for what changed.
+
+<br>
+
 A small, readable LLM inference runtime written from scratch in Python and PyTorch (optionally native C kernels are used for the dequantization stages and various forward-pass steps, for speed). It runs GGUF models locally - chat and text generation, embeddings, reranking and vision-language
 models - and serves them through an HTTP API, so tools like [pAIring](https://github.com/upupabit/pairing) can use all of its features.
 
@@ -190,28 +221,15 @@ Forward passes and tokenizers are also compared with Hugging Face on real models
 
 See [`tools/README_oracle.md`](tools/README_oracle.md) for running these on a machine with
 limited RAM. `tools/manual_chat_check.py`, `manual_embed_check.py` and `manual_pull_check.py`
-exercise the real HTTP API end to end. Long benchmarks can overheat a laptop: use
-`tools/thermal_guard.py` to stop them at a safe temperature.
+exercise the real HTTP API end to end.
 
-
-<br><br>
-
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![FastAPI](https://img.shields.io/badge/FastAPI-async-009688)
-![Self-hosted](https://img.shields.io/badge/self--hosted-yes-purple)
-![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 
 <br><br>
 
 ## License
 
 [GNU AGPL-3.0](LICENSE) — you're free to run it, modify it, and
-self-host it, no strings attached, for personal or internal use. The
-one thing it asks in return: if you take a modified version and offer
-it to other people as a hosted service, you share those changes back
-too. If that's relevant to how you're planning to use this (it usually
-isn't, for a personal setup or an internal company deployment), it's
-worth a quick look either way.
+self-host it, no strings attached, for personal or internal use.
 
 If you try it, a ⭐ is always appreciated — and issues/PRs are genuinely
 welcome, whoever you're running this for.
