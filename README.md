@@ -23,7 +23,7 @@
   <img src="https://img.shields.io/badge/GPU-CUDA_%7C_MPS-EC4899" alt="GPU">
   <img src="https://img.shields.io/badge/API-REST_%2B_streaming-009688" alt="Streaming API">
   <img src="https://img.shields.io/badge/tests-1%2C070%2B_pytest-22C55E" alt="Tests">
-  <img src="https://img.shields.io/badge/code_style-ruff-261230" alt="Ruff">
+  <img src="https://img.shields.io/badge/code_style-ruff-FED7AA" alt="Ruff">
 </p>
 
 <br>
