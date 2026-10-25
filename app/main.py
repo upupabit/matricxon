@@ -118,8 +118,9 @@ class MatricxonApp:
 
     @asynccontextmanager
     async def _lifespan(self, _app: FastAPI) -> AsyncIterator[None]:
-        # Built now, not on the first request: runs the cache dir cleanup and indexing at boot, and
-        # a cluster node without its provisioned key fails here, not on its first chat.
+        # Built now, not on the first request: runs the cache dir cleanup and indexing at boot (past
+        # a time budget the rest goes on in the background: get_cache_store), and a cluster node
+        # without its provisioned key fails here, not on its first chat.
         await asyncio.to_thread(get_cache_store)
         consensus = get_consensus_runtime()
         shared = get_shared_settings()

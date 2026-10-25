@@ -1,6 +1,8 @@
 import os
+import time
 from functools import lru_cache
 
+from app import STARTED_AT
 from app.cluster.configure import NodeConfigurator
 from app.cluster.freshness import FreshnessChecker
 from app.cluster.provisioning import EnvFile, NodeProvisioner, restart_in_place
@@ -43,6 +45,11 @@ def get_consensus_runtime() -> ConsensusRuntime | None:
     return factory.build()
 
 
+def _cache_scan_budget() -> float:
+    """Seconds the startup scan may index in the foreground (Settings.start_timeout)."""
+    return max(0.0, settings.start_timeout - 5.0 - (time.monotonic() - STARTED_AT))
+
+
 @lru_cache
 def get_cache_store() -> PersistentCacheStore:
     state_dir = settings.prompt_cache_dir.parent
@@ -56,7 +63,13 @@ def get_cache_store() -> PersistentCacheStore:
     cipher = CacheKeyStore(
         state_dir / "prompt_cache.key", settings.cache_key, settings.cluster_role == "off"
     ).load()
-    store = PersistentCacheStore(settings.prompt_cache_dir, cipher, policy, get_node_id())
+    store = PersistentCacheStore(
+        settings.prompt_cache_dir,
+        cipher,
+        policy,
+        get_node_id(),
+        scan_budget_seconds=_cache_scan_budget(),
+    )
     runtime = get_consensus_runtime()
     if runtime is not None and runtime.keeper is not None:
         store.may_clean = lambda: runtime.keeper.holds("cache_clean")

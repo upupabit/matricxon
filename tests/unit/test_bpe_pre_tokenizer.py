@@ -50,6 +50,16 @@ def test_qwen2_keeps_punctuation_with_its_newline_and_splits_single_digits() -> 
     ]
 
 
+def test_qwen35_keeps_newline_runs_and_combining_marks_with_their_letters() -> None:
+    """Qwen 3.5's tokenizer.json pattern; Matricxon matched its HF token ids on Hebrew with niqqud,
+    Hindi, code and emoji. Under GPT-2's, "\\n\\nHello" split into two "\\n" (a missed prompt cache
+    on every chat turn) and the niqqud split off its letters."""
+    pattern = _tokenizer("qwen35")._split_pattern
+
+    assert pattern.findall("\n\nHello 12") == ["\n\n", "Hello", " ", "1", "2"]
+    assert pattern.findall("שָׁלוֹם") == ["שָׁלוֹם"]
+
+
 def test_user_defined_tokens_are_matched_whole_like_control_tokens() -> None:
     """Qwen's `<think>` is user-defined (type 4), not control (3); llama.cpp keeps it whole."""
     tokens = [chr(c) for c in range(ord("!"), ord("~") + 1)] + ["<think>", "<|im_end|>"]

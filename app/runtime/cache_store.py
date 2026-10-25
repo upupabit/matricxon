@@ -49,6 +49,7 @@ class PersistentCacheStore(CacheWriter, CacheReader):
         policy: PersistencePolicy,
         node_id: str = "local",
         rescan_seconds: float = 5.0,
+        scan_budget_seconds: float | None = None,
     ) -> None:
         self._dir = directory
         self._cipher = cipher
@@ -67,21 +68,57 @@ class PersistentCacheStore(CacheWriter, CacheReader):
         self._checkpoints: dict[tuple[str, str], SlotState] = {}  # newest copy waiting per chat
         self._spills_pending = 0  # chats leaving RAM, not yet on disk
         self._dir.mkdir(parents=True, exist_ok=True)
-        self._scan()
-        self.enforce_limits()
+        self._startup_scan(scan_budget_seconds)
 
     # reading the directory
 
-    def _scan(self) -> None:
-        """Startup: drops this node's own leftovers (other nodes' are theirs) and indexes."""
+    def _startup_scan(self, budget_seconds: float | None) -> None:
+        """Indexes saved chats before the server answers. Past `budget_seconds` (None: no limit) the
+        rest continues on the writer thread, from where it stopped: a cold read costs ~140 ms per
+        file on an NFS-shared dir, and a cluster's dir can hold many chats. Spills queue behind it;
+        a chat not yet indexed is re-read once, like any miss."""
+        started = time.monotonic()
+        deadline = None if budget_seconds is None else started + budget_seconds
+        if self._scan(deadline):
+            self.enforce_limits()
+            logger.info(
+                "prompt cache: indexed %d saved chats in %.1fs",
+                len(self._index),
+                time.monotonic() - started,
+            )
+            return
+        logger.info(
+            "prompt cache: indexed %d saved chats in %.1fs, the rest continues in the background",
+            len(self._index),
+            time.monotonic() - started,
+        )
+        self._writer.submit(self._finish_startup_scan, started)
+
+    def _finish_startup_scan(self, started: float) -> None:
+        try:
+            self._refresh(drop_unreadable=True)
+            self.enforce_limits()
+        except Exception:
+            logger.exception("prompt cache: background scan of %s failed", self._dir)
+            return
+        logger.info(
+            "prompt cache: all %d saved chats indexed after %.1fs",
+            len(self._index),
+            time.monotonic() - started,
+        )
+
+    def _scan(self, deadline: float | None = None) -> bool:
+        """Startup: drops this node's own leftovers (other nodes' are theirs) and indexes. False
+        when `deadline` came first."""
         for path in self._dir.glob(f"{self._node_id}-*.tmp"):
             path.unlink(missing_ok=True)
         for path in self._dir.glob(f"*{self._claim_suffix}"):
             path.unlink(missing_ok=True)
-        self._refresh(drop_unreadable=True)
+        return self._refresh(drop_unreadable=True, deadline=deadline)
 
-    def _refresh(self, drop_unreadable: bool = False) -> None:
-        """Syncs the index with the directory: files other nodes wrote or removed."""
+    def _refresh(self, drop_unreadable: bool = False, deadline: float | None = None) -> bool:
+        """Syncs the index with the directory: files other nodes wrote or removed. Stops early
+        (False) at `deadline`; a later call continues with the files still unknown."""
         self._last_scan = time.monotonic()
         on_disk = {p.name: p for p in self._dir.glob(f"*{SUFFIX}")}
         with self._lock:
@@ -92,6 +129,8 @@ class PersistentCacheStore(CacheWriter, CacheReader):
         for name, path in on_disk.items():
             if name in known or name in self._rejected:
                 continue
+            if deadline is not None and time.monotonic() >= deadline:
+                return False
             try:
                 entry = self._read_meta(path)
             except FileNotFoundError:
@@ -105,6 +144,7 @@ class PersistentCacheStore(CacheWriter, CacheReader):
                 continue
             with self._lock:
                 self._index[name] = entry
+        return True
 
     @property
     def _claim_suffix(self) -> str:

@@ -212,11 +212,14 @@ class ChatEngine:
                 self._live.token()
                 yield next_token
                 if next_token in self._eos_token_ids:
-                    return
+                    break
                 position = kv_cache.length + request.position_delta
                 logits = yield DecodeStep(next_token, kv_cache, position, stop_check)
                 kv_cache.advance(1)
                 self._prompt_cache.advanced(kv_cache, [next_token])
+            # The reply's end: a hybrid cache resumes only from a snapshot, so without one the next
+            # turn re-read this whole reply. Never after a cancelled forward (its state is partial).
+            self._prompt_cache.capture(kv_cache)
         except GenerationCancelledError as exc:
             logger.info("generation cancelled mid-forward-pass: %s", exc)
             return

@@ -172,9 +172,13 @@ Or in the background, with a PID file and a log:
 
 ```bash
 scripts/start.sh     # starts detached; writes run/matricxon.pid and logs/matricxon.log
-scripts/status.sh    # running or stopped, plus a liveness check
+scripts/status.sh    # running, starting or stopped, plus a liveness check
 scripts/stop.sh      # graceful stop
 ```
+
+At startup Matricxon reads its saved chats from disk until `MATRICXON_START_TIMEOUT` (90 s) is near,
+then answers and reads the rest in the background; `start.sh` waits that long plus a short grace. Run
+during a start that is still in progress, it waits for that server instead of launching a second one.
 
 ## Configuration
 
@@ -201,6 +205,7 @@ variables win). All of them are listed in `app/config.py`.
 | `MATRICXON_PERSIST_CACHE_BUDGET_MB` | `4096` | Disk space for saved caches |
 | `MATRICXON_PERSIST_CACHE_TTL_HOURS` | `168` | Hours before a saved cache expires |
 | `MATRICXON_PERSIST_CACHE_SAVE_SECONDS` | `30` | A chat still in memory is copied to disk after a reply at most this often, so a crash keeps it; `0` saves only when it leaves memory |
+| `MATRICXON_START_TIMEOUT` | `90` | Seconds from launch until the server answers; saved chats not read by then load in the background |
 | `MATRICXON_PROMPT_CACHE_DIR` | `./data/prompt_cache` | Where saved caches and the generated `prompt_cache.key` live |
 | `MATRICXON_CACHE_KEY` | generated | Encryption key; set it to supply your own instead of the generated file |
 | `MATRICXON_LOG_LEVEL` | `0` | `0` warnings, `1` per-request steps, `2` per-layer trace |

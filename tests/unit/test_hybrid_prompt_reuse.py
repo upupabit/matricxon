@@ -70,3 +70,31 @@ def test_a_divergence_before_every_snapshot_falls_back_to_a_fresh_cache(
 
     assert cache.reused_tokens == 0
     assert result == _generate(model, PromptCache(), turn2)
+
+
+def test_next_turn_resumes_from_the_end_of_the_reply(model: Qwen35Architecture) -> None:
+    """A snapshot is taken when the reply ends, so the next turn re-reads only what follows it
+    (before, it rolled back to the prompt and re-read the whole reply)."""
+    cache = PromptCache()
+    reply = _generate(model, cache, TURN1)
+    turn2 = TURN1 + reply + [21, 22, 23, 24]
+
+    result = _generate(model, cache, turn2)
+
+    assert cache.reused_tokens == len(TURN1) + len(reply)
+    assert result == _generate(model, PromptCache(), turn2)
+
+
+def test_a_cancelled_reply_leaves_no_snapshot_past_the_prompt(model: Qwen35Architecture) -> None:
+    cache = PromptCache()
+    engine = ChatEngine(model, {EOS_TOKEN_ID}, prompt_cache=cache)
+    tokens: list[int] = []
+
+    for token in engine.stream(
+        GenerationRequest(torch.tensor([TURN1]), GREEDY), lambda: len(tokens) >= 2
+    ):
+        tokens.append(token)
+
+    assert len(tokens) == 2
+    (slot,) = cache._slots
+    assert max(slot.snapshots) <= len(TURN1)

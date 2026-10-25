@@ -14,7 +14,13 @@ HOST="${MATRICXON_HOST:-127.0.0.1}"
 PORT="${MATRICXON_PORT:-8420}"
 PID_FILE="run/matricxon.pid"
 
+STARTING_FILE="run/matricxon.starting"
+
 if [[ ! -f "$PID_FILE" ]] || ! kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    if [[ -f "$STARTING_FILE" ]] && kill -0 "$(cat "$STARTING_FILE")" 2>/dev/null; then
+        info "matricxon: starting (pid $(cat "$STARTING_FILE"))"
+        exit 2
+    fi
     err "matricxon: stopped"
     exit 1
 fi

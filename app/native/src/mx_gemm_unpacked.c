@@ -24,18 +24,35 @@ void mx_set_gemm_row_tile(int rows) {
 /* Four tokens against one unpacked row (the SSSE3 build): each weight load and scale broadcast serves four tokens,
  * and the per-16 mins are two pmaddwd instead of a scalar loop. Integer sums are exact and each block's float fold
  * is mx_dot_unpacked's expression in the same order, so every result is bit-identical to it. `x` is token 0's
- * first block; token t's block i is x[t * stride + i]. */
+ * first block; token t's block i is x[t * stride + i].
+ * Q4_K/Q5_K (has_min) share one scale per 32 values (two equal sc slots), so two pmaddubsw sums are added in int16
+ * first (|sum| <= 2 * 2*31*127, no saturation) and scaled by one pmaddwd: a quarter fewer multiplies, same sums.
+ * Measured on Sandy Bridge (Qwen3.5-4B, 64 tokens): Q4_K/Q5_K 26 -> 32 GMAC/s; 8 tokens per pass added nothing. */
 static void mx_dot_unpacked_x4(const mx_block_unpacked *w, const mx_block_q8_k *x, size_t stride, int nb,
                                int has_min, float *out) {
     float sumf[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     for (int i = 0; i < nb; ++i) {
         __m128i acc[4] = {_mm_setzero_si128(), _mm_setzero_si128(), _mm_setzero_si128(), _mm_setzero_si128()};
-        for (int s = 0; s < MX_QK_K / 16; ++s) {
-            const __m128i a = _mm_loadu_si128((const __m128i *)(w[i].u + 16 * s));
-            const __m128i scale = _mm_set1_epi16(w[i].sc[s]);
-            for (int t = 0; t < 4; ++t) {
-                const __m128i b = _mm_loadu_si128((const __m128i *)(x[t * stride + i].qs + 16 * s));
-                acc[t] = _mm_add_epi32(acc[t], _mm_madd_epi16(_mm_maddubs_epi16(a, b), scale));
+        if (has_min) {
+            for (int s = 0; s < MX_QK_K / 16; s += 2) {
+                const __m128i a0 = _mm_loadu_si128((const __m128i *)(w[i].u + 16 * s));
+                const __m128i a1 = _mm_loadu_si128((const __m128i *)(w[i].u + 16 * s + 16));
+                const __m128i scale = _mm_set1_epi16(w[i].sc[s]);
+                for (int t = 0; t < 4; ++t) {
+                    const int8_t *q = x[t * stride + i].qs + 16 * s;
+                    const __m128i p = _mm_add_epi16(_mm_maddubs_epi16(a0, _mm_loadu_si128((const __m128i *)q)),
+                                                    _mm_maddubs_epi16(a1, _mm_loadu_si128((const __m128i *)(q + 16))));
+                    acc[t] = _mm_add_epi32(acc[t], _mm_madd_epi16(p, scale));
+                }
+            }
+        } else {
+            for (int s = 0; s < MX_QK_K / 16; ++s) {
+                const __m128i a = _mm_loadu_si128((const __m128i *)(w[i].u + 16 * s));
+                const __m128i scale = _mm_set1_epi16(w[i].sc[s]);
+                for (int t = 0; t < 4; ++t) {
+                    const __m128i b = _mm_loadu_si128((const __m128i *)(x[t * stride + i].qs + 16 * s));
+                    acc[t] = _mm_add_epi32(acc[t], _mm_madd_epi16(_mm_maddubs_epi16(a, b), scale));
+                }
             }
         }
         const __m128i m0 = _mm_loadu_si128((const __m128i *)w[i].m);

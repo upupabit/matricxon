@@ -23,6 +23,7 @@ from jinja2.sandbox import ImmutableSandboxedEnvironment
 
 from app.gguf.metadata import GGUFMetadata
 from app.gguf.reader import GGUFReader
+from app.runtime.chat_history_think import HistoryThinkBlock
 from app.runtime.chat_template_jinja_ext import GenerationTagExtension
 from app.runtime.prompt_builder import (
     LegacyMistralPromptBuilder,
@@ -107,6 +108,7 @@ class ChatTemplatePromptBuilder:
         self._eos_token = eos_token
         self._add_bos = add_bos
         self._structured_content = structured_content
+        self._history_think = HistoryThinkBlock(lambda msgs, gen: self._render(msgs, None, gen))
 
     @classmethod
     def from_metadata(cls, metadata: GGUFMetadata) -> "ChatTemplatePromptBuilder | None":
@@ -171,13 +173,18 @@ class ChatTemplatePromptBuilder:
         return data
 
     def build(self, messages: list[ChatMessage], tools: list[dict] | None = None) -> str:
+        return self._history_think.restore(self._render(messages, tools))
+
+    def _render(
+        self, messages: list[ChatMessage], tools: list[dict] | None = None, generation: bool = True
+    ) -> str:
         compact = self._no_tools_template is not None and not tools
         template = self._no_tools_template if compact else self._template
         try:
             return template.render(
                 messages=[self._message_dict(m) for m in messages],
                 tools=tools or None,
-                add_generation_prompt=True,
+                add_generation_prompt=generation,
                 bos_token=self._bos_token,
                 eos_token=self._eos_token,
             )

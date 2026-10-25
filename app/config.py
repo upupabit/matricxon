@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     persist_cache_save_seconds: int = Field(default=30, ge=0, le=3600)
     prompt_cache_dir: Path = Path("./data/prompt_cache")
     cache_key: str | None = None
+    # Seconds from launch until the server answers: startup indexes saved chats until 5 s before
+    # it, then the rest continues in the background. start.sh waits this plus a short grace.
+    start_timeout: float = Field(default=90.0, ge=5)
     # Signs the admin routes (cluster reset/configure/provision, voters, pull/delete/copy/create,
     # cache policy): pAIring holds the same secret and signs its calls. Unset = those routes stay
     # open (protect the network instead).

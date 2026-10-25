@@ -27,6 +27,12 @@ _SPLIT_PATTERNS_BY_PRE = {
         r"(?:'[sS]|'[tT]|'[rR][eE]|'[vV][eE]|'[mM]|'[lL][lL]|'[dD])|[^\r\n\p{L}\p{N}]?\p{L}+"
         r"|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"
     ),
+    # Qwen 3.5 (from its tokenizer.json): qwen2's plus combining marks (\p{M}) kept with letters.
+    # Under GPT-2's, "\n\nHello" split into two "\n": a reply's next turn missed the prompt cache.
+    "qwen35": regex.compile(
+        r"(?:'[sS]|'[tT]|'[rR][eE]|'[vV][eE]|'[mM]|'[lL][lL]|'[dD])|[^\r\n\p{L}\p{N}]?[\p{L}\p{M}]+"
+        r"|\p{N}| ?[^\s\p{L}\p{M}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"
+    ),
 }
 
 # Matched literally, never split by BPE: control (3) and user-defined (4) tokens, as llama.cpp does.
