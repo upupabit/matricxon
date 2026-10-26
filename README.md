@@ -42,7 +42,7 @@ The project started as part of the pAIring UI. We ran into limited advanced conf
 
 
 Everything is built from scratch, with no llama.cpp, ggml or vLLM code or bindings: file parsing,
-dequantization, the transformer forward passes, caching, sampling and scheduling. It runs on CPUs & GPUs (BETA).
+dequantization, the transformer forward passes, caching, sampling and scheduling. It runs on CPUs & GPUs (BETA), as a normal user (no root needed).
 
 ## What's inside
 
@@ -179,6 +179,9 @@ scripts/stop.sh      # graceful stop
 At startup Matricxon reads its saved chats from disk until `MATRICXON_START_TIMEOUT` (90 s) is near,
 then answers and reads the rest in the background; `start.sh` waits that long plus a short grace. Run
 during a start that is still in progress, it waits for that server instead of launching a second one.
+
+**No root needed.** Matricxon runs as a normal user; its default port, 8420, is above 1024. `sudo`
+is only needed once, to install system packages such as `gcc` or `python3-venv`.
 
 ## Configuration
 
