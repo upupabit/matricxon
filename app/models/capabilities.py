@@ -4,7 +4,7 @@ from app.architectures.registry import (
     unsupported_features,
 )
 from app.models.installed_model import InstalledModel
-from app.models.tool_support import supports_tools
+from app.models.tool_support import supports_thinking, supports_tools, thinking_rereads
 from app.runtime.chat_template import has_confirmed_chat_format
 
 _THINKING_MARKERS = ("thinking", "reasoning")
@@ -69,6 +69,9 @@ def effective_capabilities(installed: InstalledModel, has_paired_mmproj: bool) -
       `Gemma4Architecture`).
     - `"tools"` when the chat template shows a tool-call format matricxon can parse
       (`app.runtime.tool_call_formats`).
+    - `"thinking"` when the chat template has an `enable_thinking` switch (ChatRequest.think).
+    - `"thinking_rereads"` when flipping that switch changes the history part of the prompt (Gemma
+      4), so a live chat is read again once; pAIring warns before the change.
     """
     if is_scoring_model(installed.path):
         # A reranker scores (POST /api/rerank); it can't chat or embed.
@@ -82,6 +85,11 @@ def effective_capabilities(installed: InstalledModel, has_paired_mmproj: bool) -
         capabilities = [*capabilities, "chat_format_unverified"]
     if "completion" in capabilities and supports_tools(installed.path):
         capabilities = [*capabilities, "tools"]
+    thinks = "completion" in capabilities and supports_thinking(installed.path)
+    if thinks and "thinking" not in capabilities:
+        capabilities = [*capabilities, "thinking"]
+    if thinks and thinking_rereads(installed.path):
+        capabilities = [*capabilities, "thinking_rereads"]
     if unsupported_features(installed.path):
         capabilities = [*capabilities, "architecture_features_unsupported"]
     return capabilities

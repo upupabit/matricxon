@@ -14,6 +14,7 @@ from app.consensus.events import ClusterEvents, enable_always_on
 from app.dependencies import (
     get_cache_store,
     get_consensus_runtime,
+    get_join_token,
     get_model_manager,
     get_shared_settings,
 )
@@ -122,6 +123,8 @@ class MatricxonApp:
         # a time budget the rest goes on in the background: get_cache_store), and a cluster node
         # without its provisioned key fails here, not on its first chat.
         await asyncio.to_thread(get_cache_store)
+        # A new node logs the token pAIring's Add nodes form asks for (cluster/join_token.py).
+        await asyncio.to_thread(get_join_token().announce)
         consensus = get_consensus_runtime()
         shared = get_shared_settings()
         if consensus is not None:

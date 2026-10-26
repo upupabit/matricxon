@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.cluster.freshness import FreshnessChecker
+from app.cluster.join_token import JoinToken
 from app.cluster.provisioning import (
     EnvFile,
     InvalidProvisionError,
@@ -12,7 +13,7 @@ from app.cluster.provisioning import (
     ProvisionRequest,
 )
 from app.config import Settings
-from app.dependencies import get_freshness_checker, get_node_provisioner
+from app.dependencies import get_freshness_checker, get_join_token, get_node_provisioner
 from app.main import MatricxonApp
 from app.storage.paths import StoragePaths
 
@@ -145,6 +146,10 @@ def test_endpoints_report_freshness_and_map_errors(tmp_path: Path) -> None:
     app.dependency_overrides[get_freshness_checker] = lambda: checker
     app.dependency_overrides[get_node_provisioner] = lambda: NodeProvisioner(
         checker, EnvFile(tmp_path / ".env"), kill=lambda: None
+    )
+    # The join token has its own tests (test_join_token.py); never the real node state folder here.
+    app.dependency_overrides[get_join_token] = lambda: JoinToken(
+        tmp_path / "join_token", lambda: "secret set", lambda: True
     )
     client = TestClient(app)
     assert client.get("/api/cluster/fresh").json() == {"fresh": True, "reasons": []}

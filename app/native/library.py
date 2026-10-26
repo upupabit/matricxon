@@ -58,7 +58,9 @@ class NativeKernelLibrary:
         if not self.library_path.exists():
             return True
         built_at = self.library_path.stat().st_mtime
-        inputs = [*self._sources(), *self._source_dir.glob("*.h")]
+        # The flags too: a flag change (compiler_flags.py) needs a rebuild like a source change.
+        flags = Path(__file__).with_name("compiler_flags.py")
+        inputs = [*self._sources(), *self._source_dir.glob("*.h"), flags]
         return any(path.stat().st_mtime > built_at for path in inputs)
 
     def _compile(self, variant: BuildVariant, output: str) -> subprocess.CompletedProcess:

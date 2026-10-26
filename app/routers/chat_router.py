@@ -19,6 +19,7 @@ from app.runtime.prompt_builder import Mistral3PromptBuilder
 from app.runtime.qwen3vl_fusion import FusedPrompt, build_qwen3vl_prompt
 from app.runtime.reply_text_stream import ReplyTextStream
 from app.runtime.rerank_engine import ModelKind
+from app.runtime.thinking_splitter import MARKERS as THINKING_MARKERS
 from app.runtime.vision_fusion import build_prompt_with_images
 from app.schemas.chat import ChatChunk, ChatDoneChunk, ChatRequest, ChatStreamMessage, ToolCall
 from app.server.errors import PromptTooLongError
@@ -88,7 +89,7 @@ class ChatRequestHandler:
         # The model's chat template (app.runtime.chat_template): Mistral3PromptBuilder only for
         # mistral3 itself or a model with no template.
         prompt_builder = handle.prompt_builder or self._prompt_builder
-        prompt = prompt_builder.build(request.messages, request.tools)
+        prompt = prompt_builder.build(request.messages, request.tools, request.think)
         logger.info(
             "prompt built: %d messages -> %d chars in %.1fms",
             len(request.messages),
@@ -253,7 +254,10 @@ class ChatRequestHandler:
             prompt_cache=handle.prompt_cache,
             live=live,
         )
-        reply = ReplyTextStream(handle.tokenizer, handle.tool_call_format, request.tools)
+        # Thinking on: the prompt may already open the block, so the reply starts as reasoning.
+        prompt_end = handle.tokenizer.decode(generation_request.input_ids[0, -4:].tolist()).rstrip()
+        until = next((c for o, c in THINKING_MARKERS if prompt_end.endswith(o)), None)
+        reply = ReplyTextStream(handle.tokenizer, handle.tool_call_format, request.tools, until)
         # Cancelled in the gap between handle and this stream starting: nothing to run.
         if request_id is not None and self._model_manager.pop_cancelled_request(request_id):
             return
@@ -282,14 +286,17 @@ class ChatRequestHandler:
             if item in eos_token_ids:
                 self._log_stop(item, handle, request)
                 continue
-            text = reply.push(item)
-            if text:
-                yield ChatChunk(message=ChatStreamMessage(content=text)).to_ndjson_dict()
+            thinking, text = reply.push(item)
+            if thinking or text:
+                message = ChatStreamMessage(content=text, thinking=thinking or None)
+                yield ChatChunk(message=message).to_ndjson_dict()
 
-        tail, tool_calls = reply.finish()
+        thinking, tail, tool_calls = reply.finish()
         self._log_tool_result(request, tail, tool_calls)
-        if tail or tool_calls:
-            message = ChatStreamMessage(content=tail, tool_calls=tool_calls or None)
+        if thinking or tail or tool_calls:
+            message = ChatStreamMessage(
+                content=tail, thinking=thinking or None, tool_calls=tool_calls or None
+            )
             yield ChatChunk(message=message).to_ndjson_dict()
 
         eval_duration = time.monotonic() - generation_started

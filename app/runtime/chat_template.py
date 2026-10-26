@@ -24,6 +24,12 @@ from jinja2.sandbox import ImmutableSandboxedEnvironment
 from app.gguf.metadata import GGUFMetadata
 from app.gguf.reader import GGUFReader
 from app.runtime.chat_history_think import HistoryThinkBlock
+from app.runtime.chat_template_builtins import (
+    BUILTIN_TEMPLATES,
+    LLAMA3_COMPACT_TEMPLATE,
+    LLAMA3_TEMPLATE_MARKERS,
+    STRUCTURED_CONTENT_MARKERS,
+)
 from app.runtime.chat_template_jinja_ext import GenerationTagExtension
 from app.runtime.prompt_builder import (
     LegacyMistralPromptBuilder,
@@ -38,44 +44,14 @@ from app.server.errors import MatricxonError
 # signal (module docstring), in the spirit of _THINKING_MARKERS.
 _VICUNA_TAG_MARKER = "vicuna"
 
-# Built-in templates for models whose GGUF ships no `tokenizer.chat_template`, keyed by
-# `general.name`: (template, always add BOS). moondream2's reference format (BOS first, system
-# messages skipped: they only confuse a 1.9B model); the old Mistral fallback's first generated
-# token was EOS here (empty reply).
-_MOONDREAM_TEMPLATE = (
-    "{% for m in messages %}"
-    "{% if m.role == 'user' %}{{ m.image_markers + '\n\nQuestion: ' + m.text }}"
-    "{% elif m.role == 'assistant' %}{{ '\n\nAnswer: ' + m.text }}{% endif %}"
-    "{% endfor %}"
-    "{% if add_generation_prompt %}{{ '\n\nAnswer:' }}{% endif %}"
-)
-_BUILTIN_TEMPLATES = {"moondream2": (_MOONDREAM_TEMPLATE, True)}
-
-# Llama 3.x's template always opens with a system block, even without a system message/tools;
-# Ollama's llama3 template writes one only with a system message or tools (for "Say hi." Ollama
-# prefilled 13 tokens, Matricxon 40: most of a short reply's CPU latency). Used when
-# there are no tools; with tools, the model's template renders them.
-_LLAMA3_COMPACT_TEMPLATE = (
-    "{{ bos_token }}"
-    "{% for m in messages %}"
-    "{{ '<|start_header_id|>' + ('ipython' if m.role == 'tool' else m.role)"
-    " + '<|end_header_id|>\n\n' + m.content + '<|eot_id|>' }}"
-    "{% endfor %}"
-    "{% if add_generation_prompt %}"
-    "{{ '<|start_header_id|>assistant<|end_header_id|>\n\n' }}"
-    "{% endif %}"
-)
-_LLAMA3_TEMPLATE_MARKERS = ("<|start_header_id|>", "Cutting Knowledge Date")
-
-# Marker (SmolVLM2's template: `message['content'][0]['type']`) for a template expecting `content`
-# as a list of `{"type":...}` parts (HF's multi-modal convention), not a flat string. a flat
-# string crashes on empty content ("str object has no element 0") or renders empty on non-empty
-# content (Jinja `Undefined` never matches).
-_STRUCTURED_CONTENT_MARKERS = ("content'][0]", 'content"][0]')
-
 
 class PromptBuilder(Protocol):
-    def build(self, messages: list[ChatMessage], tools: list[dict] | None = None) -> str: ...
+    def build(
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict] | None = None,
+        think: bool | None = None,
+    ) -> str: ...
 
     def wants_bos(self, prompt: str) -> bool: ...
 
@@ -102,7 +78,7 @@ class ChatTemplatePromptBuilder:
         env.globals["raise_exception"] = self._raise_exception
         env.globals["strftime_now"] = lambda fmt: datetime.now().strftime(fmt)
         self._template = env.from_string(template)
-        # Rendered instead of `template` when a request has no tools (_LLAMA3_COMPACT_TEMPLATE).
+        # Rendered instead of `template` when a request has no tools (LLAMA3_COMPACT_TEMPLATE).
         self._no_tools_template = env.from_string(no_tools_template) if no_tools_template else None
         self._bos_token = bos_token
         self._eos_token = eos_token
@@ -115,7 +91,7 @@ class ChatTemplatePromptBuilder:
         template = metadata.get("tokenizer.chat_template")
         add_bos = bool(metadata.get("tokenizer.ggml.add_bos_token", False))
         if not template:
-            builtin = _BUILTIN_TEMPLATES.get(str(metadata.get("general.name", "")).lower())
+            builtin = BUILTIN_TEMPLATES.get(str(metadata.get("general.name", "")).lower())
             if builtin is None:
                 return None
             template, add_bos = builtin
@@ -125,15 +101,15 @@ class ChatTemplatePromptBuilder:
             token_id = metadata.get(key)
             return tokens[token_id] if token_id is not None and token_id < len(tokens) else ""
 
-        is_llama3 = all(marker in template for marker in _LLAMA3_TEMPLATE_MARKERS)
-        structured_content = any(marker in template for marker in _STRUCTURED_CONTENT_MARKERS)
+        is_llama3 = all(marker in template for marker in LLAMA3_TEMPLATE_MARKERS)
+        structured_content = any(marker in template for marker in STRUCTURED_CONTENT_MARKERS)
         try:
             return cls(
                 template,
                 token_text("tokenizer.ggml.bos_token_id"),
                 token_text("tokenizer.ggml.eos_token_id"),
                 add_bos,
-                _LLAMA3_COMPACT_TEMPLATE if is_llama3 else None,
+                LLAMA3_COMPACT_TEMPLATE if is_llama3 else None,
                 structured_content,
             )
         except TemplateError:
@@ -153,7 +129,7 @@ class ChatTemplatePromptBuilder:
     def _message_dict(self, message: ChatMessage) -> dict[str, Any]:
         """`content` gets one `[IMG]` marker per attached image in front, like
         Mistral3PromptBuilder: vision_fusion splits the rendered prompt on this literal, so it must
-        survive rendering verbatim. With `self._structured_content` (`_STRUCTURED_CONTENT_MARKERS`)
+        survive rendering verbatim. With `self._structured_content` (`STRUCTURED_CONTENT_MARKERS`)
         every part is `{"type": "text",...}`, image ones included (`text: IMAGE_MARKER`), never a
         real `{"type": "image"}`: a template's image branch renders its own hardcoded literal (e.g.
         SmolVLM2's `'<image>'`), so only the text branch carries our marker. Cost: the prompt shows
@@ -163,6 +139,8 @@ class ChatTemplatePromptBuilder:
         data = message.model_dump(exclude_none=True, exclude={"images"})
         markers = IMAGE_MARKER * len(message.images or [])
         text = message.content or ""
+        if message.thinking:
+            data["reasoning_content"] = message.thinking
         data["text"] = text
         data["image_markers"] = markers
         if self._structured_content:
@@ -172,11 +150,23 @@ class ChatTemplatePromptBuilder:
             data["content"] = markers + text
         return data
 
-    def build(self, messages: list[ChatMessage], tools: list[dict] | None = None) -> str:
-        return self._history_think.restore(self._render(messages, tools))
+    def build(
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict] | None = None,
+        think: bool | None = None,
+    ) -> str:
+        """`think`: the template's `enable_thinking` (None: its default). Earlier assistant turns
+        get the empty think block back unless they carry their reasoning (HistoryThinkBlock)."""
+        turns = [not m.thinking for m in messages if m.role == "assistant"]
+        return self._history_think.restore(self._render(messages, tools, True, think), turns)
 
     def _render(
-        self, messages: list[ChatMessage], tools: list[dict] | None = None, generation: bool = True
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict] | None = None,
+        generation: bool = True,
+        think: bool | None = None,
     ) -> str:
         compact = self._no_tools_template is not None and not tools
         template = self._no_tools_template if compact else self._template
@@ -187,6 +177,7 @@ class ChatTemplatePromptBuilder:
                 add_generation_prompt=generation,
                 bos_token=self._bos_token,
                 eos_token=self._eos_token,
+                **({} if think is None else {"enable_thinking": think}),
             )
         except TemplateError as exc:
             raise ChatTemplateError(f"could not render this model's chat template: {exc}") from exc

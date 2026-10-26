@@ -50,6 +50,7 @@ class FreshnessChecker:
             return []
         ignored = {
             "node_id",
+            "join_token",
             "oracle",
             "models",
             "prompt_cache",

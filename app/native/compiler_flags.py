@@ -14,7 +14,11 @@ import platform
 from dataclasses import dataclass
 from pathlib import Path
 
-_BASE = ("-O3", "-fPIC", "-shared", "-Wall")
+# -ffp-contract=off: no fused multiply-add the source didn't write. With it (the default on FMA
+# CPUs: Haswell+, ARM64) a token's result could depend on the kernel path: IQ1_S decode != prefill
+# on a Haswell build, seen under QEMU (tools/check_simd_parity.py). Now every build gives plain
+# C's bits; the kernels are integer work, so the cost is small.
+_BASE = ("-O3", "-fPIC", "-shared", "-Wall", "-ffp-contract=off")
 # Homebrew's libomp prefix on Apple Silicon, then on Intel Macs.
 _LIBOMP_PREFIXES = (Path("/opt/homebrew/opt/libomp"), Path("/usr/local/opt/libomp"))
 

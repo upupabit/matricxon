@@ -11,9 +11,9 @@ end may be `<eos>`. Without those stops the model ran on after its call (a secon
 ~250 tokens of "thinking"). llama.cpp stops on both too.
 
 Deliberately narrow (ChatML and Gemma 4 only, detected by template-string substring like
-`chat_template.py`'s `_LLAMA3_TEMPLATE_MARKERS`/`_STRUCTURED_CONTENT_MARKERS`) rather than a general
-template solver; `app.runtime.special_token_filter` is the general safety net for a leaked special
-token.
+`chat_template_builtins.py`'s `LLAMA3_TEMPLATE_MARKERS`/`STRUCTURED_CONTENT_MARKERS`) rather
+than a general template solver; `app.runtime.special_token_filter` is the general safety net
+for a leaked special token.
 """
 
 from app.gguf.metadata import GGUFMetadata

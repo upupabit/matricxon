@@ -24,7 +24,12 @@ class Mistral3PromptBuilder:
     control-token short-circuit, so callers need only the literal text.
     """
 
-    def build(self, messages: list[ChatMessage], tools: list[dict] | None = None) -> str:
+    def build(
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict] | None = None,
+        think: bool | None = None,
+    ) -> str:
         parts = []
         tools_emitted = False
         for message in messages:
@@ -82,7 +87,12 @@ class LegacyMistralPromptBuilder:
     the same.
     """
 
-    def build(self, messages: list[ChatMessage], tools: list[dict] | None = None) -> str:
+    def build(
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict] | None = None,
+        think: bool | None = None,
+    ) -> str:
         parts = []
         pending_system: list[str] = []
         tools_emitted = False
@@ -130,7 +140,12 @@ class VicunaPromptBuilder:
         "gives helpful, detailed, and polite answers to the human's questions."
     )
 
-    def build(self, messages: list[ChatMessage], tools: list[dict] | None = None) -> str:
+    def build(
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict] | None = None,
+        think: bool | None = None,
+    ) -> str:
         # Falls back to _DEFAULT_SYSTEM only when the caller sent no system message: one with empty
         # content (pAIring's chat_service always sends a system message so this is distinguishable)
         # means "genuinely no preamble", not "no opinion", and stays blank.

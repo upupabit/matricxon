@@ -23,6 +23,9 @@ class ChatMessage(BaseModel):
     tool_name: str | None = None
     tool_call_id: str | None = None
     name: str | None = None
+    # An assistant turn's reasoning, as Ollama returns it in `message.thinking` and clients send it
+    # back; given to the template as `reasoning_content` (Qwen's name).
+    thinking: str | None = None
 
     @model_validator(mode="after")
     def _mirror_tool_name(self) -> "ChatMessage":
@@ -50,6 +53,9 @@ class ChatRequest(BaseModel):
     tools: list[dict] | None = None
     options: ChatOptions = ChatOptions()
     stream: bool = True
+    # Reasoning before the answer, Ollama's field: passed to the template as `enable_thinking`.
+    # None keeps the model's default (Qwen 3.5's: off).
+    think: bool | None = None
     keep_alive: int | None = None
     # Caller-chosen id for this reply (pAIring sends the message id). A later empty `keep_alive: 0`
     # call with the same id cancels just that reply: the model stays loaded and other users' replies
@@ -70,6 +76,8 @@ class ChatRequest(BaseModel):
 
 class ChatStreamMessage(BaseModel):
     content: str
+    # Reasoning, kept out of `content` (app.runtime.thinking_splitter), as Ollama does.
+    thinking: str | None = None
     tool_calls: list[ToolCall] | None = None
 
 

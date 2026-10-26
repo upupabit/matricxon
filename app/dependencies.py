@@ -2,9 +2,13 @@ import os
 import time
 from functools import lru_cache
 
+from fastapi import Depends, Request
+
 from app import STARTED_AT
 from app.cluster.configure import NodeConfigurator
 from app.cluster.freshness import FreshnessChecker
+from app.cluster.join_token import FILE_NAME as JOIN_TOKEN_FILE
+from app.cluster.join_token import JoinToken
 from app.cluster.provisioning import EnvFile, NodeProvisioner, restart_in_place
 from app.cluster.readiness import ClusterReadiness
 from app.cluster.reset import NodeResetter
@@ -113,6 +117,19 @@ def get_freshness_checker() -> FreshnessChecker:
 def _env_file() -> EnvFile:
     """The.env file, with the real environment kept in step (EnvFile)."""
     return EnvFile(get_storage_paths().env_file, os.environ)
+
+
+def get_join_token() -> JoinToken:
+    return JoinToken(
+        settings.node_state_dir / JOIN_TOKEN_FILE,
+        lambda: settings.admin_secret,
+        lambda: get_freshness_checker().report().fresh,
+    )
+
+
+def require_join_token(request: Request, token: JoinToken = Depends(get_join_token)) -> None:
+    """For the routes that can take over a new node (cluster/join_token.py)."""
+    token.check(request)
 
 
 def get_node_provisioner() -> NodeProvisioner:

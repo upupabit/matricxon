@@ -40,15 +40,19 @@ class HistoryThinkBlock:
         self._detect()
         return self._block
 
-    def restore(self, prompt: str) -> str:
-        """`prompt` with the block after every assistant header that lacks it (the generation prompt
-        already has it)."""
+    def restore(self, prompt: str, turns: list[bool] | None = None) -> str:
+        """`prompt` with the block after assistant headers that lack it. `turns`: one flag per
+        history assistant turn, in order (False: it carries its reasoning, leave it as rendered);
+        later headers (the generation prompt, which may open a real `<think>`) are left alone.
+        None: every header."""
         if not self.block:
             return prompt
         parts = prompt.split(self._header)
         restored = [parts[0]]
-        for part in parts[1:]:
-            restored.append(part if part.startswith(self._block) else self._block + part)
+        for index, part in enumerate(parts[1:]):
+            wanted = turns is None or (index < len(turns) and turns[index])
+            needs = wanted and not part.startswith(self._block)
+            restored.append(self._block + part if needs else part)
         return self._header.join(restored)
 
     def _detect(self) -> None:

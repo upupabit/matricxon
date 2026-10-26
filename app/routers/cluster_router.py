@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.cluster.configure import ConfigureRefusedError, ConfigureRequest, NodeConfigurator
 from app.cluster.freshness import FreshnessChecker
+from app.cluster.join_token import JoinToken
 from app.cluster.provisioning import (
     InvalidProvisionError,
     NodeProvisioner,
@@ -13,9 +14,11 @@ from app.cluster.reset import NodeResetter, ResetRefusedError
 from app.dependencies import (
     get_cluster_readiness,
     get_freshness_checker,
+    get_join_token,
     get_node_configurator,
     get_node_provisioner,
     get_node_resetter,
+    require_join_token,
 )
 from app.schemas.cluster import (
     AdminSecretBody,
@@ -82,11 +85,13 @@ def get_freshness(checker: FreshnessChecker = Depends(get_freshness_checker)) ->
 
 @router.post(
     "/api/cluster/provision",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin), Depends(require_join_token)],
     response_model=ProvisionResponse,
 )
 def provision_node(
-    body: ProvisionBody, provisioner: NodeProvisioner = Depends(get_node_provisioner)
+    body: ProvisionBody,
+    provisioner: NodeProvisioner = Depends(get_node_provisioner),
+    join_token: JoinToken = Depends(get_join_token),
 ) -> ProvisionResponse:
     """Makes a fresh install a cluster joiner (409 if not fresh, 400 for unusable folders). It works
     only while
@@ -99,6 +104,7 @@ def provision_node(
         raise HTTPException(status_code=409, detail=f"not a fresh install: {error}") from error
     except InvalidProvisionError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+    join_token.consume()
     return ProvisionResponse(restarting=restarting)
 
 
@@ -144,14 +150,18 @@ def configure_node(
 
 @router.put(
     "/api/cluster/admin-secret",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin), Depends(require_join_token)],
     response_model=AdminSecretResponse,
 )
 def set_admin_secret(
-    body: AdminSecretBody, provisioner: NodeProvisioner = Depends(get_node_provisioner)
+    body: AdminSecretBody,
+    provisioner: NodeProvisioner = Depends(get_node_provisioner),
+    join_token: JoinToken = Depends(get_join_token),
 ) -> AdminSecretResponse:
     """Sets (or with "" removes) the admin secret on THIS node, at once and in its `.env`. Open
     while no secret is set; after that it must be signed with the current one (rotation).
     """
     provisioner.set_admin_secret(body.secret)
+    if body.secret:
+        join_token.consume()
     return AdminSecretResponse(admin_auth=bool(body.secret))

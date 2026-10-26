@@ -89,12 +89,22 @@ def test_past_the_budget_the_rest_continues_in_the_background(
     assert len(store._index) == 3
 
 
-def test_a_zero_budget_indexes_everything_in_the_background(tmp_path: Path) -> None:
+def test_a_zero_budget_indexes_everything_in_the_background(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _saved_chats(tmp_path, 2)
+    release = threading.Event()
+    original = PersistentCacheStore._finish_startup_scan
 
+    def held(self: PersistentCacheStore, started: float) -> None:
+        release.wait(5)  # so the check below can't race the writer thread
+        original(self, started)
+
+    monkeypatch.setattr(PersistentCacheStore, "_finish_startup_scan", held)
     store = _store(tmp_path, 0.0)
 
     assert store._index == {}
+    release.set()
     store.flush()
     assert len(store._index) == 2
 

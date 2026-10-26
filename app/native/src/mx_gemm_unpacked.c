@@ -74,6 +74,78 @@ static void mx_dot_unpacked_x4(const mx_block_unpacked *w, const mx_block_q8_k *
         out[t] = sumf[t];
     }
 }
+#elif defined(MX_WIDE_AVX2) || defined(MX_WIDE_NEON_DOT)
+#define MX_DOT_X4 1
+/* One block's float fold for one token, mx_dot_unpacked's expression in the same order (bit-identical results). */
+static inline void mx_fold(float *sumf, const mx_block_unpacked *w, const mx_block_q8_k *y, int32_t sumi,
+                           int has_min) {
+    int32_t summ = 0;
+    for (int s = 0; s < MX_QK_K / 16; ++s) {
+        summ += (int32_t)w->m[s] * (int32_t)y->bsums[s];
+    }
+    if (has_min) {
+        *sumf += y->d * (w->d * (float)sumi - w->dmin * (float)summ);
+    } else {
+        *sumf += y->d * w->d * (float)(sumi - summ);
+    }
+}
+
+/* The SSSE3 4-token pass for the wide builds (MX_WIDE_SIMD): each weight load serves four tokens. AVX2: two 16-value
+ * sub-blocks per register, low lane s, high lane s+1, each with its own scale (so Q4_K/Q5_K need no pairing step);
+ * VNNI sums four products per int32 in one instruction. NEON dotprod: one 16-value sub-block per vdotq. Integer
+ * sums are exact, so results equal mx_dot_unpacked's. Checked under QEMU (AVX2 as Haswell, NEON as armv8.2+dotprod;
+ * VNNI build-checked only: QEMU has no AVX-VNNI), not yet on real hardware. */
+static void mx_dot_unpacked_x4(const mx_block_unpacked *w, const mx_block_q8_k *x, size_t stride, int nb,
+                               int has_min, float *out) {
+    float sumf[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    for (int i = 0; i < nb; ++i) {
+        int32_t sumi[4];
+#if defined(MX_WIDE_AVX2)
+        __m256i acc[4] = {_mm256_setzero_si256(), _mm256_setzero_si256(), _mm256_setzero_si256(),
+                          _mm256_setzero_si256()};
+        for (int s = 0; s < MX_QK_K / 16; s += 2) {
+            const __m256i a = _mm256_loadu_si256((const __m256i *)(w[i].u + 16 * s));
+#if defined(__AVXVNNI__) || (defined(__AVX512VNNI__) && defined(__AVX512VL__))
+            const __m256i scale = _mm256_set_m128i(_mm_set1_epi32(w[i].sc[s + 1]), _mm_set1_epi32(w[i].sc[s]));
+#else
+            const __m256i scale = _mm256_set_m128i(_mm_set1_epi16(w[i].sc[s + 1]), _mm_set1_epi16(w[i].sc[s]));
+#endif
+            for (int t = 0; t < 4; ++t) {
+                const __m256i b = _mm256_loadu_si256((const __m256i *)(x[t * stride + i].qs + 16 * s));
+#if defined(__AVXVNNI__)
+                const __m256i sums = _mm256_mullo_epi32(_mm256_dpbusd_avx_epi32(_mm256_setzero_si256(), a, b), scale);
+#elif defined(__AVX512VNNI__) && defined(__AVX512VL__)
+                const __m256i sums = _mm256_mullo_epi32(_mm256_dpbusd_epi32(_mm256_setzero_si256(), a, b), scale);
+#else
+                const __m256i sums = _mm256_madd_epi16(_mm256_maddubs_epi16(a, b), scale);
+#endif
+                acc[t] = _mm256_add_epi32(acc[t], sums);
+            }
+        }
+        for (int t = 0; t < 4; ++t) {
+            sumi[t] = mx_hsum_epi32(_mm_add_epi32(_mm256_castsi256_si128(acc[t]), _mm256_extracti128_si256(acc[t], 1)));
+        }
+#else
+        int32x4_t acc[4] = {vdupq_n_s32(0), vdupq_n_s32(0), vdupq_n_s32(0), vdupq_n_s32(0)};
+        for (int s = 0; s < MX_QK_K / 16; ++s) {
+            const int8x16_t a = vreinterpretq_s8_u8(vld1q_u8(w[i].u + 16 * s));
+            for (int t = 0; t < 4; ++t) {
+                const int32x4_t d = vdotq_s32(vdupq_n_s32(0), a, vld1q_s8(x[t * stride + i].qs + 16 * s));
+                acc[t] = vmlaq_n_s32(acc[t], d, w[i].sc[s]);
+            }
+        }
+        for (int t = 0; t < 4; ++t) {
+            sumi[t] = vaddvq_s32(acc[t]);
+        }
+#endif
+        for (int t = 0; t < 4; ++t) {
+            mx_fold(&sumf[t], &w[i], &x[t * stride + i], sumi[t], has_min);
+        }
+    }
+    for (int t = 0; t < 4; ++t) {
+        out[t] = sumf[t];
+    }
+}
 #endif
 
 /* w: packed rows; xq: (n_tokens, nb) Q8_K activations; y: (n_tokens, out_features). 0, or -2 out of memory. */
