@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.models.load_dtype import MEMORY_SAFETY_MARGIN
 
 # A software version, not an env-overridable knob; GET /api/version reads it.
-MATRICXON_VERSION = "0.1.0"
+MATRICXON_VERSION = "2.0"  # the git tag; keep in step when tagging a release
 
 
 class Settings(BaseSettings):
