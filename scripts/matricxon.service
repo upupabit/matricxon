@@ -1,0 +1,44 @@
+# Matricxon systemd unit: a template, not ready to use as-is.
+#
+# For a server that runs Matricxon on its own, e.g. a cluster node. Not on a pAIring server: pAIring starts its own
+# Matricxon (and would find port 8420 taken).
+#
+# EDIT the values marked below to match your install, then:
+#
+#   sudo cp scripts/matricxon.service /etc/systemd/system/matricxon.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now matricxon
+#
+# Useful afterward:
+#   systemctl status matricxon        # is it running?
+#   tail -f logs/matricxon.log        # its log, as with scripts/start.sh
+#   sudo systemctl restart matricxon  # after an update or a .env change
+#
+# scripts/status.sh works as usual. Use systemctl rather than start.sh/stop.sh while the service is enabled.
+
+[Unit]
+Description=Matricxon inference server
+# The network and shared storage (a cluster's models and caches) must be up first.
+Wants=network-online.target
+After=network-online.target remote-fs.target
+
+[Service]
+Type=simple
+# EDIT: the user it runs as (never root). On a cluster: the same user, with the same user ID, on every node, so each
+# can write the others' files on the shared storage; with pAIring, its "pairing" user.
+User=pairing
+# EDIT: this checkout's path, here and in every line below.
+WorkingDirectory=/opt/matricxon
+Environment=MATRICXON_PID_FILE=/opt/matricxon/run/matricxon.pid
+ExecStartPre=/usr/bin/mkdir -p /opt/matricxon/run /opt/matricxon/logs
+# EDIT: host and port, if not the defaults (as MATRICXON_HOST / MATRICXON_PORT for start.sh).
+ExecStart=/opt/matricxon/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8420
+StandardOutput=append:/opt/matricxon/logs/matricxon.log
+StandardError=inherit
+# Shutdown saves cached chats to disk first, and a big one takes a while (stop.sh waits 60 s).
+TimeoutStopSec=90
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

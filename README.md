@@ -176,12 +176,23 @@ scripts/status.sh    # running, starting or stopped, plus a liveness check
 scripts/stop.sh      # graceful stop
 ```
 
+As a service that comes back after a reboot (Linux, e.g. a cluster node): edit and install
+`scripts/matricxon.service`, then `sudo systemctl enable --now matricxon`. Not on a pAIring server:
+pAIring starts its own Matricxon.
+
 At startup Matricxon reads its saved chats from disk until `MATRICXON_START_TIMEOUT` (90 s) is near,
 then answers and reads the rest in the background; `start.sh` waits that long plus a short grace. Run
 during a start that is still in progress, it waits for that server instead of launching a second one.
 
 **No root needed.** Matricxon runs as a normal user; its default port, 8420, is above 1024. `sudo`
 is only needed once, to install system packages such as `gcc` or `python3-venv`.
+
+**Cluster: the same user on every node.** Run Matricxon as the same user, with the same user ID, on
+every node, so each node can write the files the others made on the shared storage. With pAIring,
+that's its `pairing` user (pAIring starts its own Matricxon as that user); on each Matricxon-only
+node: `sudo useradd -m -u <ID> -s /bin/bash pairing`, with the ID that `id -u pairing` shows on the
+pAIring server, then install Matricxon as it (`sudo -iu pairing`) and run it with
+`scripts/matricxon.service` (`User=pairing`), so the node comes back after a reboot.
 
 ## Configuration
 
