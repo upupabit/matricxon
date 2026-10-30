@@ -151,6 +151,11 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt     # requirements-dev.txt adds the test tools
 ```
 
+**Linux server** (Matricxon on its own, e.g. a cluster node): `scripts/install.sh` does the same
+without root, plus `.env` and a first build of the native kernels. It suggests `/opt/matricxon` and
+the `pairing` user, and asks before going on otherwise. With pAIring, install Matricxon from
+pAIring's UI instead: it goes into pAIring's own folder.
+
 The native C kernels are compiled automatically on first start if `gcc` (or `cc` on macOS) is
 available. Without a compiler, Matricxon falls back to the Numba kernels, which are much slower.
 
@@ -191,7 +196,7 @@ is only needed once, to install system packages such as `gcc` or `python3-venv`.
 every node, so each node can write the files the others made on the shared storage. With pAIring,
 that's its `pairing` user (pAIring starts its own Matricxon as that user); on each Matricxon-only
 node: `sudo useradd -m -u <ID> -s /bin/bash pairing`, with the ID that `id -u pairing` shows on the
-pAIring server, then install Matricxon as it (`sudo -iu pairing`) and run it with
+pAIring server, then install Matricxon as it (`sudo -iu pairing`, `scripts/install.sh`) and run it with
 `scripts/matricxon.service` (`User=pairing`), so the node comes back after a reboot.
 
 ## Configuration

@@ -17,7 +17,7 @@ step() { printf '\n==> %s\n' "$1"; }
 fail() { printf '\nERROR: %s\n' "$1" >&2; exit 1; }
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
-    fail "this script is for macOS. On Linux, use pAIring's \"Install from GitHub\" or README.md's Setup."
+    fail "this script is for macOS. On Linux, use scripts/install.sh (or pAIring's \"Install from GitHub\")."
 fi
 
 step "Checking Xcode command-line tools (git + the cc C compiler)"
