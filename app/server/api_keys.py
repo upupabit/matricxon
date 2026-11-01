@@ -58,3 +58,15 @@ def get_api_key_auth() -> ApiKeyAuth:
 async def require_api_key(request: Request) -> None:
     """FastAPI dependency for the routes that run a model, and /metrics."""
     _auth.check(request)
+
+
+async def require_admin_or_current_key(request: Request) -> None:
+    """For changing the key: signed with the admin secret when one is set; otherwise the caller
+    must send the current key, so nobody can simply remove it. Open only while neither is set."""
+    from app.server.admin_auth import get_admin_auth
+
+    admin = get_admin_auth()
+    if admin.enabled:
+        await admin.check(request)
+    else:
+        _auth.check(request)

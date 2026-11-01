@@ -28,6 +28,7 @@ os.environ.update(
         "MATRICXON_CONSENSUS_SECRET": "",
         "MATRICXON_CACHE_KEY": "",
         "MATRICXON_ADMIN_SECRET": "",  # tests that need one set it themselves
+        "MATRICXON_API_KEYS": "",  # likewise; the live server's key must not reach tests
         "MATRICXON_LOG_LEVEL": "0",  # the default; some tests read log lines
     }
 )

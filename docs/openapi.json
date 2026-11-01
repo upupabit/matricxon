@@ -25,6 +25,32 @@
         "title": "AdminSecretResponse",
         "type": "object"
       },
+      "ApiKeyBody": {
+        "properties": {
+          "key": {
+            "default": "",
+            "maxLength": 200,
+            "pattern": "^[^\\s,]*$",
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "title": "ApiKeyBody",
+        "type": "object"
+      },
+      "ApiKeyResponse": {
+        "properties": {
+          "api_key": {
+            "title": "Api Key",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "api_key"
+        ],
+        "title": "ApiKeyResponse",
+        "type": "object"
+      },
       "CachePersistenceStatus": {
         "properties": {
           "budget_mb": {
@@ -1972,6 +1998,19 @@
             ],
             "title": "Advertise Url"
           },
+          "api_key": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "pattern": "^[^\\s,]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
           "consensus_seeds": {
             "anyOf": [
               {
@@ -3158,6 +3197,45 @@
           }
         },
         "summary": "Set Admin Secret"
+      }
+    },
+    "/api/cluster/api-key": {
+      "put": {
+        "description": "Sets (or with \"\" removes) the API key on THIS node, at once and in its `.env`. pAIring sends\nit to every node of a cluster (Cluster page), or to the one server it uses.",
+        "operationId": "set_api_key_api_cluster_api_key_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Api Key"
       }
     },
     "/api/cluster/configure": {

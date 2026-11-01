@@ -25,6 +25,7 @@ class ProvisionRequest:
     consensus_seeds: dict[str, str] | None = None
     admin_secret: str | None = None
     node_kind: str | None = None
+    api_key: str | None = None  # protects a new node from its first start
 
 
 class EnvFile:
@@ -105,6 +106,8 @@ class NodeProvisioner:
             )
         if request.admin_secret:
             settings["MATRICXON_ADMIN_SECRET"] = request.admin_secret
+        if request.api_key:
+            settings["MATRICXON_API_KEYS"] = request.api_key
         if request.node_kind:
             settings["MATRICXON_NODE_KIND"] = request.node_kind
         self._env.set(settings)
@@ -121,6 +124,16 @@ class NodeProvisioner:
             self._env.set({"MATRICXON_ADMIN_SECRET": secret})
         else:
             self._env.remove(["MATRICXON_ADMIN_SECRET"])
+
+    def set_api_key(self, key: str) -> None:
+        """Like set_admin_secret, for the API key: checked from the next request on."""
+        from app.config import settings
+
+        settings.api_keys = key
+        if key:
+            self._env.set({"MATRICXON_API_KEYS": key})
+        else:
+            self._env.remove(["MATRICXON_API_KEYS"])
 
     @staticmethod
     def _validate(request: ProvisionRequest) -> None:

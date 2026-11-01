@@ -23,6 +23,8 @@ from app.dependencies import (
 from app.schemas.cluster import (
     AdminSecretBody,
     AdminSecretResponse,
+    ApiKeyBody,
+    ApiKeyResponse,
     ConfigureBody,
     FreshnessResponse,
     ProvisionBody,
@@ -31,6 +33,7 @@ from app.schemas.cluster import (
     ReadinessResponse,
 )
 from app.server.admin_auth import require_admin
+from app.server.api_keys import require_admin_or_current_key
 
 router = APIRouter()
 
@@ -165,3 +168,17 @@ def set_admin_secret(
     if body.secret:
         join_token.consume()
     return AdminSecretResponse(admin_auth=bool(body.secret))
+
+
+@router.put(
+    "/api/cluster/api-key",
+    dependencies=[Depends(require_admin_or_current_key)],
+    response_model=ApiKeyResponse,
+)
+def set_api_key(
+    body: ApiKeyBody, provisioner: NodeProvisioner = Depends(get_node_provisioner)
+) -> ApiKeyResponse:
+    """Sets (or with "" removes) the API key on THIS node, at once and in its `.env`. pAIring sends
+    it to every node of a cluster (Cluster page), or to the one server it uses."""
+    provisioner.set_api_key(body.key)
+    return ApiKeyResponse(api_key=bool(body.key))

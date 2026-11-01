@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ReadinessCheckInfo(BaseModel):
@@ -36,6 +36,7 @@ class ProvisionBody(BaseModel):
     advertise_url: str | None = None
     consensus_seeds: dict[str, str] | None = None
     admin_secret: str | None = None
+    api_key: str | None = Field(default=None, max_length=200, pattern=r"^[^\s,]*$")
     node_kind: Literal["compute", "voter"] | None = None
 
 
@@ -59,3 +60,12 @@ class AdminSecretBody(BaseModel):
 
 class AdminSecretResponse(BaseModel):
     admin_auth: bool
+
+
+class ApiKeyBody(BaseModel):
+    # The key for the routes that run a model (MATRICXON_API_KEYS); "" removes it.
+    key: str = Field(default="", max_length=200, pattern=r"^[^\s,]*$")
+
+
+class ApiKeyResponse(BaseModel):
+    api_key: bool
