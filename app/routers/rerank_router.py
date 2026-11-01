@@ -7,6 +7,7 @@ from app.models.manager import ModelManager
 from app.models.worker_call import WorkerCall
 from app.runtime.rerank_engine import RerankEngine
 from app.schemas.rerank import RerankRequest, RerankResponse, RerankResult
+from app.server.api_keys import require_api_key
 from app.server.node_kind import require_compute
 
 router = APIRouter()
@@ -39,7 +40,11 @@ class RerankRequestHandler:
         return RerankResponse(model=request.model, results=results[: request.top_n])
 
 
-@router.post("/api/rerank", dependencies=[Depends(require_compute)], response_model=RerankResponse)
+@router.post(
+    "/api/rerank",
+    dependencies=[Depends(require_compute), Depends(require_api_key)],
+    response_model=RerankResponse,
+)
 async def post_rerank(
     request: RerankRequest, model_manager: ModelManager = Depends(get_model_manager)
 ) -> RerankResponse:

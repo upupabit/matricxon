@@ -58,6 +58,7 @@ class PromptBuilder(Protocol):
 
 class ChatTemplateError(MatricxonError):
     status_code = 400
+    code = "chat_template_error"
 
 
 class ChatTemplatePromptBuilder:

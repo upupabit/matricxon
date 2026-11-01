@@ -124,6 +124,19 @@ raw integer types, which fail with a clear error.
 - **Safe memory use.** A model that would not fit in free RAM (with a safety margin) is refused. Idle models unload after a keep-alive time.
 - **Cancelling one reply.** A `request_id` on `/api/chat` stops just that reply; the model and
   other users' replies are untouched.
+- **OpenAI-compatible API.** `/v1/chat/completions` (streamed or whole), `/v1/embeddings` and
+  `/v1/models`, so OpenAI SDKs and tools work by changing the base URL to `http://<host>:8420/v1`.
+- **Structured output.** `format: "json"` (or `response_format` on `/v1`) gives a JSON object;
+  `format: <JSON Schema>` makes the reply match the schema: property names, required keys, types,
+  `enum` and `items`. Invalid tokens are refused while sampling, so the reply is valid JSON as it
+  streams.
+- **Sampling options.** Besides Ollama's, `min_p`, `presence_penalty`, `frequency_penalty` and
+  `stop` texts, on `/api/chat`, `/api/generate` and `/v1`. The last chunk says why a reply ended
+  (`done_reason`: `stop` or `length`).
+- **API keys.** Set `MATRICXON_API_KEYS` and the routes that run a model (and `/metrics`) need
+  `Authorization: Bearer <key>`.
+- **Monitoring.** `GET /metrics` (Prometheus text: requests per route, tokens, active replies,
+  loaded models, free memory); every answer carries an `X-Request-ID`.
 
 ## API
 
@@ -139,8 +152,16 @@ raw integer types, which fail with a clear error.
 | `GET /api/health` | Matricxon-only: supported architectures, quantizations, MoE and vision lists |
 | `GET /api/version` | Version string |
 | `GET`/`PUT`/`DELETE /api/cache/persistence` | Matricxon-only: show, change (`enabled`, `budget_mb`, `ttl_hours`) or empty the on-disk chat cache; no auth of its own |
+| `POST /v1/chat/completions`, `POST /v1/embeddings`, `GET /v1/models` | OpenAI-compatible; `num_ctx` comes from `MATRICXON_OPENAI_NUM_CTX` unless the request sends one |
+| `GET /metrics` | Prometheus metrics |
 
 Pulling resolves only `hf.co/<repo>:<file>` tags.
+
+Errors answer as `{"error": "<message>", "code": "<stable code>"}`, e.g. `model_not_found`,
+`prompt_too_long`, `out_of_memory` (`/v1` uses OpenAI's error shape). The full spec is
+[docs/openapi.json](docs/openapi.json), also served live at `/openapi.json` with a browsable view at
+`/docs`. After changing a route, run `.venv/bin/python tools/export_openapi.py`; a test fails while
+the committed file is out of date.
 
 ## Setup
 
@@ -228,6 +249,8 @@ variables win). All of them are listed in `app/config.py`.
 | `MATRICXON_PROMPT_CACHE_DIR` | `./data/prompt_cache` | Where saved caches and the generated `prompt_cache.key` live |
 | `MATRICXON_CACHE_KEY` | generated | Encryption key; set it to supply your own instead of the generated file |
 | `MATRICXON_LOG_LEVEL` | `0` | `0` warnings, `1` per-request steps, `2` per-layer trace |
+| `MATRICXON_API_KEYS` | empty | Comma-separated keys for the routes that run a model and `/metrics`; empty = open |
+| `MATRICXON_OPENAI_NUM_CTX` | `4096` | `num_ctx` for `/v1` requests that don't send one |
 
 ## Testing
 

@@ -1,0 +1,4237 @@
+{
+  "components": {
+    "schemas": {
+      "AdminSecretBody": {
+        "properties": {
+          "secret": {
+            "default": "",
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "title": "AdminSecretBody",
+        "type": "object"
+      },
+      "AdminSecretResponse": {
+        "properties": {
+          "admin_auth": {
+            "title": "Admin Auth",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "admin_auth"
+        ],
+        "title": "AdminSecretResponse",
+        "type": "object"
+      },
+      "CachePersistenceStatus": {
+        "properties": {
+          "budget_mb": {
+            "title": "Budget Mb",
+            "type": "integer"
+          },
+          "chats": {
+            "default": 0,
+            "title": "Chats",
+            "type": "integer"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "files": {
+            "title": "Files",
+            "type": "integer"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
+          },
+          "save_every_seconds": {
+            "default": 30,
+            "title": "Save Every Seconds",
+            "type": "integer"
+          },
+          "shared": {
+            "default": false,
+            "title": "Shared",
+            "type": "boolean"
+          },
+          "ttl_hours": {
+            "title": "Ttl Hours",
+            "type": "integer"
+          },
+          "used_bytes": {
+            "title": "Used Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "budget_mb",
+          "ttl_hours",
+          "files",
+          "used_bytes"
+        ],
+        "title": "CachePersistenceStatus",
+        "type": "object"
+      },
+      "CachePersistenceUpdate": {
+        "description": "Omitted fields stay unchanged. Turning `enabled` off also deletes every stored cache.",
+        "properties": {
+          "budget_mb": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Mb"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "save_every_seconds": {
+            "anyOf": [
+              {
+                "maximum": 3600.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Save Every Seconds"
+          },
+          "ttl_hours": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttl Hours"
+          }
+        },
+        "title": "CachePersistenceUpdate",
+        "type": "object"
+      },
+      "ChatHoldResponse": {
+        "properties": {
+          "ram": {
+            "title": "Ram",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ram"
+        ],
+        "title": "ChatHoldResponse",
+        "type": "object"
+      },
+      "ChatMessage": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "images": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Images"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "thinking": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking"
+          },
+          "tool_call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Call Id"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ToolCall"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
+          },
+          "tool_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Name"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "ChatMessage",
+        "type": "object"
+      },
+      "ChatOptions": {
+        "properties": {
+          "frequency_penalty": {
+            "default": 0.0,
+            "maximum": 2.0,
+            "minimum": -2.0,
+            "title": "Frequency Penalty",
+            "type": "number"
+          },
+          "min_p": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min P",
+            "type": "number"
+          },
+          "num_ctx": {
+            "default": 2048,
+            "title": "Num Ctx",
+            "type": "integer"
+          },
+          "num_predict": {
+            "default": -1,
+            "title": "Num Predict",
+            "type": "integer"
+          },
+          "presence_penalty": {
+            "default": 0.0,
+            "maximum": 2.0,
+            "minimum": -2.0,
+            "title": "Presence Penalty",
+            "type": "number"
+          },
+          "repeat_penalty": {
+            "default": 1.1,
+            "title": "Repeat Penalty",
+            "type": "number"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "stop": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop"
+          },
+          "temperature": {
+            "default": 0.8,
+            "title": "Temperature",
+            "type": "number"
+          },
+          "top_k": {
+            "default": 40,
+            "title": "Top K",
+            "type": "integer"
+          },
+          "top_p": {
+            "default": 0.9,
+            "title": "Top P",
+            "type": "number"
+          }
+        },
+        "title": "ChatOptions",
+        "type": "object"
+      },
+      "ChatRequest": {
+        "properties": {
+          "cache_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Tag"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "const": "json",
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "keep_alive": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keep Alive"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "model_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Role"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ChatOptions",
+            "default": {
+              "frequency_penalty": 0.0,
+              "min_p": 0.0,
+              "num_ctx": 2048,
+              "num_predict": -1,
+              "presence_penalty": 0.0,
+              "repeat_penalty": 1.1,
+              "temperature": 0.8,
+              "top_k": 40,
+              "top_p": 0.9
+            }
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "stream": {
+            "default": true,
+            "title": "Stream",
+            "type": "boolean"
+          },
+          "think": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Think"
+          },
+          "tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tools"
+          }
+        },
+        "required": [
+          "model",
+          "messages"
+        ],
+        "title": "ChatRequest",
+        "type": "object"
+      },
+      "ChatSpillBody": {
+        "properties": {
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag"
+        ],
+        "title": "ChatSpillBody",
+        "type": "object"
+      },
+      "ChatSpillResponse": {
+        "properties": {
+          "spilled": {
+            "title": "Spilled",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "spilled"
+        ],
+        "title": "ChatSpillResponse",
+        "type": "object"
+      },
+      "ConfigChange": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "ConfigChange",
+        "type": "object"
+      },
+      "ConfigResult": {
+        "properties": {
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "result": {
+            "title": "Result"
+          }
+        },
+        "required": [
+          "applied"
+        ],
+        "title": "ConfigResult",
+        "type": "object"
+      },
+      "ConfigureBody": {
+        "properties": {
+          "admin_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin Secret"
+          },
+          "advertise_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advertise Url"
+          },
+          "models_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Models Dir"
+          },
+          "node_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "compute",
+                  "voter"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Kind"
+          },
+          "prompt_cache_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Cache Dir"
+          },
+          "restart": {
+            "default": true,
+            "title": "Restart",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "off",
+              "seed"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "ConfigureBody",
+        "type": "object"
+      },
+      "ConsensusStatus": {
+        "properties": {
+          "addresses": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Addresses",
+            "type": "object"
+          },
+          "admin_auth": {
+            "default": false,
+            "title": "Admin Auth",
+            "type": "boolean"
+          },
+          "advertise_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advertise Url"
+          },
+          "applied_slot": {
+            "default": 0,
+            "title": "Applied Slot",
+            "type": "integer"
+          },
+          "applied_total": {
+            "default": 0,
+            "title": "Applied Total",
+            "type": "integer"
+          },
+          "cluster_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cluster Id"
+          },
+          "config": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Config",
+            "type": "object"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "epoch": {
+            "default": 0,
+            "title": "Epoch",
+            "type": "integer"
+          },
+          "has_quorum": {
+            "default": false,
+            "title": "Has Quorum",
+            "type": "boolean"
+          },
+          "holds": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Holds",
+            "type": "array"
+          },
+          "is_voter": {
+            "default": false,
+            "title": "Is Voter",
+            "type": "boolean"
+          },
+          "leader": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leader"
+          },
+          "leases": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Leases",
+            "type": "object"
+          },
+          "members": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Members",
+            "type": "object"
+          },
+          "node_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Id"
+          },
+          "node_kind": {
+            "default": "compute",
+            "title": "Node Kind",
+            "type": "string"
+          },
+          "nodes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Nodes",
+            "type": "object"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reachable": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reachable"
+          },
+          "removed": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Removed",
+            "type": "array"
+          },
+          "role": {
+            "default": "off",
+            "title": "Role",
+            "type": "string"
+          },
+          "seeds": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Seeds",
+            "type": "object"
+          },
+          "target_voters": {
+            "default": 0,
+            "title": "Target Voters",
+            "type": "integer"
+          },
+          "timers": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "default": {},
+            "title": "Timers",
+            "type": "object"
+          },
+          "voters": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Voters",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "ConsensusStatus",
+        "type": "object"
+      },
+      "CopyRequest": {
+        "properties": {
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "destination"
+        ],
+        "title": "CopyRequest",
+        "type": "object"
+      },
+      "CreateRequest": {
+        "properties": {
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "stream": {
+            "default": true,
+            "title": "Stream",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "model",
+          "from"
+        ],
+        "title": "CreateRequest",
+        "type": "object"
+      },
+      "DeleteRequest": {
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "DeleteRequest",
+        "type": "object"
+      },
+      "EmbedOptions": {
+        "properties": {
+          "num_ctx": {
+            "default": 2048,
+            "title": "Num Ctx",
+            "type": "integer"
+          }
+        },
+        "title": "EmbedOptions",
+        "type": "object"
+      },
+      "EmbedRequest": {
+        "properties": {
+          "input": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Input"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/EmbedOptions",
+            "default": {
+              "num_ctx": 2048
+            }
+          }
+        },
+        "required": [
+          "model",
+          "input"
+        ],
+        "title": "EmbedRequest",
+        "type": "object"
+      },
+      "EmbedResponse": {
+        "properties": {
+          "embeddings": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Embeddings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "embeddings"
+        ],
+        "title": "EmbedResponse",
+        "type": "object"
+      },
+      "EmbeddingsOptions": {
+        "properties": {
+          "num_ctx": {
+            "default": 2048,
+            "title": "Num Ctx",
+            "type": "integer"
+          }
+        },
+        "title": "EmbeddingsOptions",
+        "type": "object"
+      },
+      "EmbeddingsRequest": {
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/EmbeddingsOptions",
+            "default": {
+              "num_ctx": 2048
+            }
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "title": "EmbeddingsRequest",
+        "type": "object"
+      },
+      "EmbeddingsResponse": {
+        "properties": {
+          "embedding": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Embedding",
+            "type": "array"
+          }
+        },
+        "required": [
+          "embedding"
+        ],
+        "title": "EmbeddingsResponse",
+        "type": "object"
+      },
+      "FreshnessResponse": {
+        "properties": {
+          "fresh": {
+            "title": "Fresh",
+            "type": "boolean"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fresh",
+          "reasons"
+        ],
+        "title": "FreshnessResponse",
+        "type": "object"
+      },
+      "GenerateOptions": {
+        "description": "The same sampling options and stop texts as a chat.",
+        "properties": {
+          "frequency_penalty": {
+            "default": 0.0,
+            "maximum": 2.0,
+            "minimum": -2.0,
+            "title": "Frequency Penalty",
+            "type": "number"
+          },
+          "min_p": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min P",
+            "type": "number"
+          },
+          "num_ctx": {
+            "default": 2048,
+            "title": "Num Ctx",
+            "type": "integer"
+          },
+          "num_predict": {
+            "default": -1,
+            "title": "Num Predict",
+            "type": "integer"
+          },
+          "presence_penalty": {
+            "default": 0.0,
+            "maximum": 2.0,
+            "minimum": -2.0,
+            "title": "Presence Penalty",
+            "type": "number"
+          },
+          "repeat_penalty": {
+            "default": 1.1,
+            "title": "Repeat Penalty",
+            "type": "number"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "stop": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop"
+          },
+          "temperature": {
+            "default": 0.8,
+            "title": "Temperature",
+            "type": "number"
+          },
+          "top_k": {
+            "default": 40,
+            "title": "Top K",
+            "type": "integer"
+          },
+          "top_p": {
+            "default": 0.9,
+            "title": "Top P",
+            "type": "number"
+          }
+        },
+        "title": "GenerateOptions",
+        "type": "object"
+      },
+      "GenerateRequest": {
+        "properties": {
+          "keep_alive": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keep Alive"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/GenerateOptions",
+            "default": {
+              "frequency_penalty": 0.0,
+              "min_p": 0.0,
+              "num_ctx": 2048,
+              "num_predict": -1,
+              "presence_penalty": 0.0,
+              "repeat_penalty": 1.1,
+              "temperature": 0.8,
+              "top_k": 40,
+              "top_p": 0.9
+            }
+          },
+          "prompt": {
+            "default": "",
+            "title": "Prompt",
+            "type": "string"
+          },
+          "stream": {
+            "default": true,
+            "title": "Stream",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "GenerateRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "moe_supported_architectures": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Moe Supported Architectures",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "supported_architectures": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Supported Architectures",
+            "type": "array"
+          },
+          "supported_quantizations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Supported Quantizations",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "vision_supported_architectures": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Vision Supported Architectures",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "supported_architectures",
+          "moe_supported_architectures",
+          "vision_supported_architectures",
+          "supported_quantizations"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "InferCapabilitiesRequest": {
+        "properties": {
+          "architecture": {
+            "title": "Architecture",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "repo_id": {
+            "title": "Repo Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo_id",
+          "filename",
+          "architecture"
+        ],
+        "title": "InferCapabilitiesRequest",
+        "type": "object"
+      },
+      "InferCapabilitiesResponse": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "capabilities"
+        ],
+        "title": "InferCapabilitiesResponse",
+        "type": "object"
+      },
+      "LiveRequestEntry": {
+        "description": "One reply's progress. `phase`: loading, building, queued, prefill, decode or done.",
+        "properties": {
+          "decode_stage_seconds": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "default": {},
+            "title": "Decode Stage Seconds",
+            "type": "object"
+          },
+          "elapsed_seconds": {
+            "title": "Elapsed Seconds",
+            "type": "number"
+          },
+          "first_token_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Token Seconds"
+          },
+          "generated_tokens": {
+            "default": 0,
+            "title": "Generated Tokens",
+            "type": "integer"
+          },
+          "layer": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layer"
+          },
+          "layer_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layer Count"
+          },
+          "load_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Seconds"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "phase": {
+            "title": "Phase",
+            "type": "string"
+          },
+          "prefill_stage_seconds": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "default": {},
+            "title": "Prefill Stage Seconds",
+            "type": "object"
+          },
+          "prefilled_tokens": {
+            "default": 0,
+            "title": "Prefilled Tokens",
+            "type": "integer"
+          },
+          "prompt_tokens": {
+            "default": 0,
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "reused_tokens": {
+            "default": 0,
+            "title": "Reused Tokens",
+            "type": "integer"
+          },
+          "stage_seconds": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "default": {},
+            "title": "Stage Seconds",
+            "type": "object"
+          },
+          "stage_timing": {
+            "default": false,
+            "title": "Stage Timing",
+            "type": "boolean"
+          },
+          "tokens_per_second": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Per Second"
+          }
+        },
+        "required": [
+          "request_id",
+          "model",
+          "phase",
+          "elapsed_seconds"
+        ],
+        "title": "LiveRequestEntry",
+        "type": "object"
+      },
+      "LiveSnapshot": {
+        "properties": {
+          "requests": {
+            "items": {
+              "$ref": "#/components/schemas/LiveRequestEntry"
+            },
+            "title": "Requests",
+            "type": "array"
+          }
+        },
+        "required": [
+          "requests"
+        ],
+        "title": "LiveSnapshot",
+        "type": "object"
+      },
+      "LoadedModelLoad": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "size_bytes",
+          "active"
+        ],
+        "title": "LoadedModelLoad",
+        "type": "object"
+      },
+      "ModelDetails": {
+        "properties": {
+          "context_length": {
+            "title": "Context Length",
+            "type": "integer"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "parameter_size": {
+            "title": "Parameter Size",
+            "type": "string"
+          }
+        },
+        "required": [
+          "family",
+          "parameter_size",
+          "context_length"
+        ],
+        "title": "ModelDetails",
+        "type": "object"
+      },
+      "NodeLoadResponse": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "integer"
+          },
+          "free_memory_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Memory Bytes"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/LoadedModelLoad"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "node_kind": {
+            "title": "Node Kind",
+            "type": "string"
+          },
+          "threads": {
+            "title": "Threads",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "active",
+          "models",
+          "threads",
+          "free_memory_bytes",
+          "node_kind"
+        ],
+        "title": "NodeLoadResponse",
+        "type": "object"
+      },
+      "OpenAIChatRequest": {
+        "properties": {
+          "frequency_penalty": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": -2.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frequency Penalty"
+          },
+          "logprobs": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logprobs"
+          },
+          "max_completion_tokens": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Completion Tokens"
+          },
+          "max_tokens": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Tokens"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/OpenAIMessage"
+            },
+            "minItems": 1,
+            "title": "Messages",
+            "type": "array"
+          },
+          "min_p": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min P"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "num_ctx": {
+            "anyOf": [
+              {
+                "minimum": 256.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Num Ctx"
+          },
+          "presence_penalty": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": -2.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presence Penalty"
+          },
+          "repeat_penalty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Penalty"
+          },
+          "response_format": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Format"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "stop": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop"
+          },
+          "stream": {
+            "default": false,
+            "title": "Stream",
+            "type": "boolean"
+          },
+          "stream_options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StreamOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          },
+          "think": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Think"
+          },
+          "tool_choice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Choice"
+          },
+          "tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tools"
+          },
+          "top_k": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top K"
+          },
+          "top_p": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top P"
+          }
+        },
+        "required": [
+          "model",
+          "messages"
+        ],
+        "title": "OpenAIChatRequest",
+        "type": "object"
+      },
+      "OpenAIEmbedding": {
+        "properties": {
+          "embedding": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Embedding"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "object": {
+            "const": "embedding",
+            "default": "embedding",
+            "title": "Object",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "embedding"
+        ],
+        "title": "OpenAIEmbedding",
+        "type": "object"
+      },
+      "OpenAIEmbeddingsRequest": {
+        "properties": {
+          "dimensions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dimensions"
+          },
+          "encoding_format": {
+            "default": "float",
+            "enum": [
+              "float",
+              "base64"
+            ],
+            "title": "Encoding Format",
+            "type": "string"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Input"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "input"
+        ],
+        "title": "OpenAIEmbeddingsRequest",
+        "type": "object"
+      },
+      "OpenAIEmbeddingsResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/OpenAIEmbedding"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "object": {
+            "const": "list",
+            "default": "list",
+            "title": "Object",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "data",
+          "model",
+          "usage"
+        ],
+        "title": "OpenAIEmbeddingsResponse",
+        "type": "object"
+      },
+      "OpenAIMessage": {
+        "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "tool_call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Call Id"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "OpenAIMessage",
+        "type": "object"
+      },
+      "OpenAIModel": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "object": {
+            "const": "model",
+            "default": "model",
+            "title": "Object",
+            "type": "string"
+          },
+          "owned_by": {
+            "default": "matricxon",
+            "title": "Owned By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created"
+        ],
+        "title": "OpenAIModel",
+        "type": "object"
+      },
+      "OpenAIModelList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/OpenAIModel"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "object": {
+            "const": "list",
+            "default": "list",
+            "title": "Object",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "OpenAIModelList",
+        "type": "object"
+      },
+      "ProvisionBody": {
+        "properties": {
+          "admin_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin Secret"
+          },
+          "advertise_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advertise Url"
+          },
+          "consensus_seeds": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consensus Seeds"
+          },
+          "models_dir": {
+            "title": "Models Dir",
+            "type": "string"
+          },
+          "node_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "compute",
+                  "voter"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Kind"
+          },
+          "prompt_cache_dir": {
+            "title": "Prompt Cache Dir",
+            "type": "string"
+          },
+          "restart": {
+            "default": true,
+            "title": "Restart",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "models_dir",
+          "prompt_cache_dir"
+        ],
+        "title": "ProvisionBody",
+        "type": "object"
+      },
+      "ProvisionResponse": {
+        "properties": {
+          "restarting": {
+            "title": "Restarting",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "restarting"
+        ],
+        "title": "ProvisionResponse",
+        "type": "object"
+      },
+      "PsEntry": {
+        "properties": {
+          "expires_at": {
+            "title": "Expires At",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "size_vram": {
+            "title": "Size Vram",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "size",
+          "size_vram",
+          "expires_at"
+        ],
+        "title": "PsEntry",
+        "type": "object"
+      },
+      "PsResponse": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/PsEntry"
+            },
+            "title": "Models",
+            "type": "array"
+          }
+        },
+        "required": [
+          "models"
+        ],
+        "title": "PsResponse",
+        "type": "object"
+      },
+      "PullRequest": {
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "stream": {
+            "default": true,
+            "title": "Stream",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "PullRequest",
+        "type": "object"
+      },
+      "PushRequest": {
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "stream": {
+            "default": true,
+            "title": "Stream",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "PushRequest",
+        "type": "object"
+      },
+      "ReachRequest": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "title": "ReachRequest",
+        "type": "object"
+      },
+      "ReachResult": {
+        "properties": {
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "node_id": {
+            "default": "",
+            "title": "Node Id",
+            "type": "string"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reachable"
+        ],
+        "title": "ReachResult",
+        "type": "object"
+      },
+      "ReadinessCheckInfo": {
+        "properties": {
+          "hint": {
+            "title": "Hint",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "setting": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setting"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "what": {
+            "title": "What",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "what",
+          "why",
+          "setting",
+          "size_bytes",
+          "hint"
+        ],
+        "title": "ReadinessCheckInfo",
+        "type": "object"
+      },
+      "ReadinessResponse": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "admin_auth": {
+            "default": false,
+            "title": "Admin Auth",
+            "type": "boolean"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ReadinessCheckInfo"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "node_kind": {
+            "default": "compute",
+            "title": "Node Kind",
+            "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "node_id",
+          "ready",
+          "active",
+          "checks",
+          "nodes"
+        ],
+        "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "RerankRequest": {
+        "properties": {
+          "documents": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Documents",
+            "type": "array"
+          },
+          "instruction": {
+            "default": "Given a web search query, retrieve relevant passages that answer the query",
+            "title": "Instruction",
+            "type": "string"
+          },
+          "keep_alive": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keep Alive"
+          },
+          "max_tokens": {
+            "default": 8192,
+            "minimum": 64.0,
+            "title": "Max Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "query": {
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "return_documents": {
+            "default": false,
+            "title": "Return Documents",
+            "type": "boolean"
+          },
+          "top_n": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top N"
+          }
+        },
+        "required": [
+          "model",
+          "query",
+          "documents"
+        ],
+        "title": "RerankRequest",
+        "type": "object"
+      },
+      "RerankResponse": {
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/RerankResult"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "model",
+          "results"
+        ],
+        "title": "RerankResponse",
+        "type": "object"
+      },
+      "RerankResult": {
+        "properties": {
+          "document": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "relevance_score": {
+            "title": "Relevance Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "index",
+          "relevance_score"
+        ],
+        "title": "RerankResult",
+        "type": "object"
+      },
+      "RuntimeSettingsResult": {
+        "properties": {
+          "applied_next_load": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applied Next Load",
+            "type": "array"
+          },
+          "applied_now": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applied Now",
+            "type": "array"
+          }
+        },
+        "required": [
+          "applied_now",
+          "applied_next_load"
+        ],
+        "title": "RuntimeSettingsResult",
+        "type": "object"
+      },
+      "RuntimeSettingsUpdate": {
+        "properties": {
+          "default_keep_alive_seconds": {
+            "anyOf": [
+              {
+                "maximum": 86400.0,
+                "minimum": 60.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Keep Alive Seconds"
+          },
+          "enable_quantized_native_compute": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enable Quantized Native Compute"
+          },
+          "gemv_backend": {
+            "anyOf": [
+              {
+                "enum": [
+                  "numba",
+                  "native"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gemv Backend"
+          },
+          "gpu_weight_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "dequantized",
+                  "packed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu Weight Mode"
+          },
+          "log_level": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Level"
+          },
+          "max_decode_batch": {
+            "anyOf": [
+              {
+                "maximum": 64.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Decode Batch"
+          },
+          "max_loaded_models": {
+            "anyOf": [
+              {
+                "maximum": 64.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Loaded Models"
+          },
+          "memory_safety_margin": {
+            "anyOf": [
+              {
+                "maximum": 1.8,
+                "minimum": 1.1,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Safety Margin"
+          },
+          "prompt_cache_budget_mb": {
+            "anyOf": [
+              {
+                "maximum": 1048576.0,
+                "minimum": 64.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Cache Budget Mb"
+          },
+          "prompt_cache_slots": {
+            "anyOf": [
+              {
+                "maximum": 64.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Cache Slots"
+          }
+        },
+        "title": "RuntimeSettingsUpdate",
+        "type": "object"
+      },
+      "ShowRequest": {
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "ShowRequest",
+        "type": "object"
+      },
+      "ShowResponse": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ModelDetails"
+          },
+          "estimated_ram_gb": {
+            "title": "Estimated Ram Gb",
+            "type": "number"
+          }
+        },
+        "required": [
+          "capabilities",
+          "details",
+          "estimated_ram_gb"
+        ],
+        "title": "ShowResponse",
+        "type": "object"
+      },
+      "StoragePathInfo": {
+        "properties": {
+          "exists": {
+            "title": "Exists",
+            "type": "boolean"
+          },
+          "free_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Bytes"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "setting": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setting"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "role",
+          "setting",
+          "exists",
+          "size_bytes",
+          "free_bytes"
+        ],
+        "title": "StoragePathInfo",
+        "type": "object"
+      },
+      "StorageResponse": {
+        "properties": {
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/StoragePathInfo"
+            },
+            "title": "Paths",
+            "type": "array"
+          }
+        },
+        "required": [
+          "node_id",
+          "paths"
+        ],
+        "title": "StorageResponse",
+        "type": "object"
+      },
+      "StreamOptions": {
+        "properties": {
+          "include_usage": {
+            "default": false,
+            "title": "Include Usage",
+            "type": "boolean"
+          }
+        },
+        "title": "StreamOptions",
+        "type": "object"
+      },
+      "TagEntry": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ModelDetails"
+          },
+          "estimated_ram_gb": {
+            "title": "Estimated Ram Gb",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "capabilities",
+          "size",
+          "details",
+          "estimated_ram_gb"
+        ],
+        "title": "TagEntry",
+        "type": "object"
+      },
+      "TagsResponse": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/TagEntry"
+            },
+            "title": "Models",
+            "type": "array"
+          }
+        },
+        "required": [
+          "models"
+        ],
+        "title": "TagsResponse",
+        "type": "object"
+      },
+      "ToolCall": {
+        "properties": {
+          "function": {
+            "$ref": "#/components/schemas/ToolFunctionCall"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          }
+        },
+        "required": [
+          "function"
+        ],
+        "title": "ToolCall",
+        "type": "object"
+      },
+      "ToolFunctionCall": {
+        "properties": {
+          "arguments": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": {},
+            "title": "Arguments"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ToolFunctionCall",
+        "type": "object"
+      },
+      "Usage": {
+        "properties": {
+          "completion_tokens": {
+            "default": 0,
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "prompt_tokens": {
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "total_tokens": {
+            "title": "Total Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompt_tokens",
+          "total_tokens"
+        ],
+        "title": "Usage",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VersionResponse": {
+        "properties": {
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "VersionResponse",
+        "type": "object"
+      },
+      "VoterChange": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "address"
+        ],
+        "title": "VoterChange",
+        "type": "object"
+      },
+      "VoterResult": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "VoterResult",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Matricxon's HTTP API: Ollama-style routes under /api, OpenAI-compatible routes under /v1, and Prometheus metrics at /metrics. Errors answer as `{\"error\": <message>, \"code\": <stable code>}` (OpenAI's error shape on /v1).",
+    "title": "Matricxon",
+    "version": "2.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/cache/holds": {
+      "get": {
+        "description": "Does this node hold chat `tag` (pAIring's conversation id) in RAM? Routes the next message to\nthe node with its processed state.",
+        "operationId": "holds_chat_api_cache_holds_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tag",
+            "required": true,
+            "schema": {
+              "title": "Tag",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatHoldResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Holds Chat"
+      }
+    },
+    "/api/cache/persistence": {
+      "delete": {
+        "operationId": "delete_cache_persistence_api_cache_persistence_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CachePersistenceStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Delete Cache Persistence"
+      },
+      "get": {
+        "operationId": "get_cache_persistence_api_cache_persistence_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CachePersistenceStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Cache Persistence"
+      },
+      "put": {
+        "operationId": "put_cache_persistence_api_cache_persistence_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CachePersistenceUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CachePersistenceStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Cache Persistence"
+      }
+    },
+    "/api/cache/persistence/chats/{tag}": {
+      "delete": {
+        "description": "Drops the stored prompt caches of one conversation (its `cache_tag`), e.g. after pAIring\ndeletes the chat.",
+        "operationId": "delete_chat_cache_api_cache_persistence_chats__tag__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag",
+            "required": true,
+            "schema": {
+              "title": "Tag",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CachePersistenceStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Chat Cache"
+      }
+    },
+    "/api/cache/spill": {
+      "post": {
+        "description": "Moves the chat out of this node's RAM onto the shared disk (models stay loaded) so another\nnode can continue it. Returns once the files are written.",
+        "operationId": "spill_chat_api_cache_spill_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatSpillBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatSpillResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Spill Chat"
+      }
+    },
+    "/api/chat": {
+      "post": {
+        "operationId": "post_chat_api_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Chat"
+      }
+    },
+    "/api/cluster/activate": {
+      "post": {
+        "operationId": "activate_cluster_api_cluster_activate_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Activate Cluster"
+      }
+    },
+    "/api/cluster/admin-secret": {
+      "put": {
+        "description": "Sets (or with \"\" removes) the admin secret on THIS node, at once and in its `.env`. Open\nwhile no secret is set; after that it must be signed with the current one (rotation).",
+        "operationId": "set_admin_secret_api_cluster_admin_secret_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminSecretBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSecretResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Admin Secret"
+      }
+    },
+    "/api/cluster/configure": {
+      "post": {
+        "description": "Turns cluster mode on/off for THIS node (the seed) and restarts it gracefully. 409 for a\njoiner, 400 for a\nmissing folder or key. Signed when an admin secret is set; called by pAIring's admin-only\nCluster page.",
+        "operationId": "configure_node_api_cluster_configure_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Configure Node"
+      }
+    },
+    "/api/cluster/fresh": {
+      "get": {
+        "operationId": "get_freshness_api_cluster_fresh_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Freshness"
+      }
+    },
+    "/api/cluster/provision": {
+      "post": {
+        "description": "Makes a fresh install a cluster joiner (409 if not fresh, 400 for unusable folders). It works\nonly while\nthe node is fresh, and is called by pAIring's admin-only Cluster page. Signed when an admin\nsecret is set.",
+        "operationId": "provision_node_api_cluster_provision_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Provision Node"
+      }
+    },
+    "/api/cluster/readiness": {
+      "get": {
+        "operationId": "get_readiness_api_cluster_readiness_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Readiness"
+      }
+    },
+    "/api/cluster/reset": {
+      "post": {
+        "description": "Hard reset: THIS node returns to a fresh install and restarts, whatever its state (409 only\nfor an active voter,\nunless `force=true`). Models and shared folders are untouched. Signed when an admin secret is\nset; called by\npAIring's admin-only Cluster page.",
+        "operationId": "reset_node_api_cluster_reset_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Force",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Node"
+      }
+    },
+    "/api/consensus/config": {
+      "put": {
+        "description": "Sets one cluster-wide config value through the cluster (needs a majority). Signed when an\nadmin secret is set;\npAIring's admin pages sit in front.",
+        "operationId": "set_config_api_consensus_config_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Config"
+      }
+    },
+    "/api/consensus/message": {
+      "post": {
+        "description": "A signed consensus message from another node of the cluster.",
+        "operationId": "receive_message_api_consensus_message_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Receive Message"
+      }
+    },
+    "/api/consensus/reach": {
+      "post": {
+        "description": "Whether THIS node can reach `address`: a new node must be reachable at its advertised address\n(pAIring's 127.0.0.1 can mean something else in a container).",
+        "operationId": "can_reach_api_consensus_reach_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReachRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReachResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Can Reach"
+      }
+    },
+    "/api/consensus/status": {
+      "get": {
+        "operationId": "get_status_api_consensus_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsensusStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Status"
+      }
+    },
+    "/api/consensus/voters": {
+      "post": {
+        "description": "Makes a node a voter (a new epoch). Any voter can be asked; it goes through the leader.",
+        "operationId": "add_voter_api_consensus_voters_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoterChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoterResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Voter"
+      }
+    },
+    "/api/consensus/voters/{node_id}": {
+      "delete": {
+        "description": "`leave=true`: removed on purpose, so it is not promoted again while it still follows.",
+        "operationId": "remove_voter_api_consensus_voters__node_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "title": "Node Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "leave",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Leave",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoterResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Voter"
+      }
+    },
+    "/api/copy": {
+      "post": {
+        "operationId": "post_copy_api_copy_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Copy"
+      }
+    },
+    "/api/create": {
+      "post": {
+        "operationId": "post_create_api_create_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Create"
+      }
+    },
+    "/api/delete": {
+      "delete": {
+        "operationId": "delete_model_api_delete_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Model"
+      }
+    },
+    "/api/embed": {
+      "post": {
+        "operationId": "post_embed_api_embed_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Embed"
+      }
+    },
+    "/api/embeddings": {
+      "post": {
+        "operationId": "post_embeddings_api_embeddings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Embeddings"
+      }
+    },
+    "/api/generate": {
+      "post": {
+        "operationId": "post_generate_api_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Generate"
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "get_health_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Health"
+      }
+    },
+    "/api/infer-capabilities": {
+      "post": {
+        "operationId": "post_infer_capabilities_api_infer_capabilities_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InferCapabilitiesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferCapabilitiesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Infer Capabilities"
+      }
+    },
+    "/api/live": {
+      "get": {
+        "description": "Running and recent replies. Each call keeps stage timing on for a short while.",
+        "operationId": "get_live_api_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Live"
+      }
+    },
+    "/api/node/load": {
+      "get": {
+        "operationId": "get_node_load_api_node_load_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeLoadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Node Load"
+      }
+    },
+    "/api/ps": {
+      "get": {
+        "operationId": "get_ps_api_ps_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Ps"
+      }
+    },
+    "/api/pull": {
+      "post": {
+        "operationId": "post_pull_api_pull_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PullRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Pull"
+      }
+    },
+    "/api/push": {
+      "post": {
+        "operationId": "post_push_api_push_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Push"
+      }
+    },
+    "/api/rerank": {
+      "post": {
+        "operationId": "post_rerank_api_rerank_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RerankRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RerankResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Rerank"
+      }
+    },
+    "/api/runtime-settings": {
+      "put": {
+        "description": "Changes settings without a restart; signed like the other admin routes.",
+        "operationId": "put_runtime_settings_api_runtime_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeSettingsResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Runtime Settings"
+      }
+    },
+    "/api/show": {
+      "post": {
+        "operationId": "post_show_api_show_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Show"
+      }
+    },
+    "/api/storage": {
+      "get": {
+        "operationId": "get_storage_api_storage_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Storage"
+      }
+    },
+    "/api/tags": {
+      "get": {
+        "operationId": "get_tags_api_tags_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Tags"
+      }
+    },
+    "/api/version": {
+      "get": {
+        "operationId": "get_version_api_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Version"
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "get_metrics_metrics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Metrics"
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "operationId": "post_chat_completions_v1_chat_completions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenAIChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Chat Completions"
+      }
+    },
+    "/v1/embeddings": {
+      "post": {
+        "operationId": "post_embeddings_v1_embeddings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenAIEmbeddingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIEmbeddingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Embeddings"
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "operationId": "get_models_v1_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIModelList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Models"
+      }
+    },
+    "/v1/models/{model}": {
+      "get": {
+        "operationId": "get_model_v1_models__model__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model",
+            "required": true,
+            "schema": {
+              "title": "Model",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Model"
+      }
+    }
+  }
+}

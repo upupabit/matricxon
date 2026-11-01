@@ -9,7 +9,7 @@ import torch
 from fastapi import FastAPI
 
 from app.architectures.triton_gemv import TritonGemv
-from app.config import settings
+from app.config import MATRICXON_VERSION, settings
 from app.consensus.events import ClusterEvents, enable_always_on
 from app.dependencies import (
     get_cache_store,
@@ -20,6 +20,8 @@ from app.dependencies import (
 )
 from app.native.fused_ops import FusedOps
 from app.native.gemm import NativeGemm
+from app.openai_compat import chat_router as openai_chat_router
+from app.openai_compat import models_router as openai_models_router
 from app.routers import (
     cache_chats_router,
     cache_persistence_router,
@@ -35,6 +37,7 @@ from app.routers import (
     generate_router,
     health_router,
     live_router,
+    metrics_router,
     node_load_router,
     ps_router,
     pull_router,
@@ -51,10 +54,17 @@ from app.runtime.cpu_cores import CpuCores
 from app.server.errors import DeviceUnavailableError, ErrorHandlerRegistrar
 from app.server.log_filters import LOG_LEVELS_BY_SETTING, quiet_cluster_logging
 from app.server.pidfile import PidFile
+from app.server.request_context import RequestContextMiddleware
 
 
 class MatricxonApp:
     """Builds the FastAPI app: an Ollama-API-compatible inference server."""
+
+    DESCRIPTION = (
+        "Matricxon's HTTP API: Ollama-style routes under /api, OpenAI-compatible routes under "
+        "/v1, and Prometheus metrics at /metrics. Errors answer as "
+        '`{"error": <message>, "code": <stable code>}` (OpenAI\'s error shape on /v1).'
+    )
 
     ROUTERS = (
         tags_router.router,
@@ -81,6 +91,9 @@ class MatricxonApp:
         runtime_settings_router.router,
         consensus_router.router,
         node_load_router.router,
+        openai_chat_router.router,
+        openai_models_router.router,
+        metrics_router.router,
     )
 
     def __init__(self) -> None:
@@ -160,10 +173,16 @@ class MatricxonApp:
             )
 
     def build(self) -> FastAPI:
-        app = FastAPI(title="matricxon", lifespan=self._lifespan)
+        app = FastAPI(
+            title="Matricxon",
+            version=MATRICXON_VERSION,
+            description=self.DESCRIPTION,
+            lifespan=self._lifespan,
+        )
         for router in self.ROUTERS:
             app.include_router(router)
         ErrorHandlerRegistrar().register(app)
+        app.add_middleware(RequestContextMiddleware)
         return app
 
 

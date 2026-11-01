@@ -72,3 +72,38 @@ class TestTopPFilter:
     def test_p_one_is_a_no_op(self) -> None:
         logits = torch.tensor([1.0, 4.0, 3.0])
         assert torch.equal(TopPFilter(p=1.0).apply(logits), logits)
+
+
+class TestNewOptions:
+    def test_presence_and_frequency_penalties_lower_repeated_tokens(self) -> None:
+        from app.runtime.sampler import PresenceFrequencyPenalty
+
+        logits = torch.tensor([1.0, 1.0, 1.0])
+        result = PresenceFrequencyPenalty(presence=0.5, frequency=0.25).apply(logits, [1, 1, 2])
+
+        assert torch.allclose(result, torch.tensor([1.0, 0.0, 0.25]))
+
+    def test_min_p_drops_unlikely_tokens(self) -> None:
+        from app.runtime.sampler import MinPFilter
+
+        logits = torch.log(torch.tensor([0.6, 0.3, 0.1]))
+        result = MinPFilter(0.4).apply(logits)
+
+        assert torch.isfinite(result[:2]).all() and result[2] == float("-inf")
+
+    def test_a_constraint_decides_the_token(self) -> None:
+        class OnlyTwo:
+            accepted: list[int] = []
+
+            def allows(self, token_id: int) -> bool:
+                return token_id == 2
+
+            def accept(self, token_id: int) -> None:
+                self.accepted.append(token_id)
+
+        constraint = OnlyTwo()
+        logits = torch.tensor([9.0, 8.0, -5.0, 1.0])
+        for temperature in (0.0, 1.0):
+            sampler = Sampler(SamplingConfig(temperature=temperature, seed=1), constraint)
+            assert sampler.sample(logits, []) == 2
+        assert constraint.accepted == [2, 2]

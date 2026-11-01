@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Protocol
 
 import torch
 
@@ -17,6 +17,19 @@ class SamplingConfig:
     num_ctx: int = 2048
     num_predict: int = -1
     seed: int | None = None
+    # Off by default. min_p keeps tokens at least this share of the top one's probability; the
+    # penalties follow OpenAI: minus `presence` once a token appeared, minus `frequency` per use.
+    min_p: float = 0.0
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
+
+
+class TokenConstraint(Protocol):
+    """Decides token by token what the reply may contain (the sampler asks before each pick)."""
+
+    def allows(self, token_id: int) -> bool: ...
+
+    def accept(self, token_id: int) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -33,6 +46,8 @@ class GenerationRequest:
     position_ids: torch.Tensor | None = None
     position_delta: int = 0
     cache_tag: str = ""
+    # Limits which tokens may come next (structured output: app.runtime.json_constraint).
+    constraint: "TokenConstraint | None" = None
 
 
 @dataclass(frozen=True)

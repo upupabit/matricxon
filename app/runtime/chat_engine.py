@@ -160,7 +160,7 @@ class ChatEngine:
                 prompt_len,
                 self._prompt_cache.miss_reason,
             )
-        sampler = Sampler(sampling)
+        sampler = Sampler(sampling, request.constraint)
         room = max(sampling.num_ctx - prompt_len, 0)
         max_new_tokens = room if sampling.num_predict < 0 else min(sampling.num_predict, room)
 

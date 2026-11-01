@@ -9,6 +9,7 @@ from app.models.worker_call import WorkerCall
 from app.runtime.embedding_engine import EmbeddingEngine
 from app.runtime.rerank_engine import ModelKind
 from app.schemas.embed import EmbedRequest, EmbedResponse
+from app.server.api_keys import require_api_key
 from app.server.errors import PromptTooLongError
 from app.server.node_kind import require_compute
 
@@ -42,7 +43,11 @@ class EmbedRequestHandler:
         return EmbedResponse(embeddings=await WorkerCall.collect(handle.worker, embed_all))
 
 
-@router.post("/api/embed", dependencies=[Depends(require_compute)], response_model=EmbedResponse)
+@router.post(
+    "/api/embed",
+    dependencies=[Depends(require_compute), Depends(require_api_key)],
+    response_model=EmbedResponse,
+)
 async def post_embed(
     request: EmbedRequest, model_manager: ModelManager = Depends(get_model_manager)
 ) -> EmbedResponse:

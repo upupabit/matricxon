@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     # cache policy): pAIring holds the same secret and signs its calls. Unset = those routes stay
     # open (protect the network instead).
     admin_secret: str | None = None
+    # Comma-separated keys for the routes that run a model (chat, generate, embed, rerank, the
+    # OpenAI-compatible /v1 routes) and /metrics, sent as `Authorization: Bearer <key>`. Empty = no
+    # key needed (protect the network instead). pAIring must send one too once this is set.
+    api_keys: str = ""
+    # num_ctx for /v1 requests, whose clients (OpenAI SDKs) never send one; `num_ctx` in the request
+    # body overrides it.
+    openai_num_ctx: int = Field(default=4096, ge=256)
     # "voter" = consensus only: never loads or serves a model, so pAIring routes no chats to it.
     node_kind: Literal["compute", "voter"] = "compute"
     # Per-node state (node id); never shared, unlike the cache dir.

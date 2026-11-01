@@ -13,6 +13,8 @@ class NDJSONResponse(StreamingResponse):
 
     def __init__(self, body_iterator: AsyncIterator[dict], **kwargs: object) -> None:
         super().__init__(content=self._encode(body_iterator), **kwargs)
+        # The chunks themselves, for a caller that sends them in another shape (the /v1 routes).
+        self.items = body_iterator
 
     @staticmethod
     async def _encode(body_iterator: AsyncIterator[dict]) -> AsyncIterator[bytes]:

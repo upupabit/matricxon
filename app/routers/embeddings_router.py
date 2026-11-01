@@ -9,6 +9,7 @@ from app.models.worker_call import WorkerCall
 from app.runtime.embedding_engine import EmbeddingEngine
 from app.runtime.rerank_engine import ModelKind
 from app.schemas.embeddings import EmbeddingsRequest, EmbeddingsResponse
+from app.server.api_keys import require_api_key
 from app.server.errors import PromptTooLongError
 from app.server.node_kind import require_compute
 
@@ -38,7 +39,9 @@ router = APIRouter()
 
 
 @router.post(
-    "/api/embeddings", dependencies=[Depends(require_compute)], response_model=EmbeddingsResponse
+    "/api/embeddings",
+    dependencies=[Depends(require_compute), Depends(require_api_key)],
+    response_model=EmbeddingsResponse,
 )
 async def post_embeddings(
     request: EmbeddingsRequest, model_manager: ModelManager = Depends(get_model_manager)

@@ -4,7 +4,7 @@ import time
 import torch
 
 from app.native.fused_ops import FusedOps
-from app.runtime.generation_request import SamplingConfig
+from app.runtime.generation_request import SamplingConfig, TokenConstraint
 
 logger = logging.getLogger(__name__)
 
@@ -73,16 +73,61 @@ class TopPFilter:
         return result
 
 
+class PresenceFrequencyPenalty:
+    """OpenAI's penalties: a token already in the reply loses `presence` once and `frequency` for
+    each time it appeared, so repeats get rarer without being forbidden."""
+
+    def __init__(self, presence: float, frequency: float) -> None:
+        self._presence = presence
+        self._frequency = frequency
+
+    def apply(self, logits: torch.Tensor, generated_ids: list[int]) -> torch.Tensor:
+        if (self._presence == 0.0 and self._frequency == 0.0) or not generated_ids:
+            return logits
+        counts = torch.bincount(
+            torch.tensor(generated_ids, dtype=torch.long), minlength=len(logits)
+        )
+        counts = counts[: len(logits)].to(logits.dtype)
+        return logits - (counts > 0).to(logits.dtype) * self._presence - counts * self._frequency
+
+
+class MinPFilter:
+    """Keeps tokens whose probability is at least `p` times the most likely token's."""
+
+    def __init__(self, p: float) -> None:
+        self._p = p
+
+    def apply(self, logits: torch.Tensor) -> torch.Tensor:
+        if self._p <= 0.0:
+            return logits
+        probabilities = torch.softmax(logits, dim=-1)
+        return logits.masked_fill(probabilities < self._p * probabilities.max(), float("-inf"))
+
+
 class Sampler:
     """Ollama-option-shaped sampling pipeline: repeat-penalty -> temperature -> top-k -> top-p ->
     multinomial, run once per generated token on that step's vocab-sized logits."""
 
-    def __init__(self, sampling: SamplingConfig) -> None:
+    # Draws tried before a constrained pick falls back to the best allowed token.
+    CONSTRAINED_TRIES = 32
+
+    def __init__(self, sampling: SamplingConfig, constraint: TokenConstraint | None = None) -> None:
         self._sampling = sampling
+        self._constraint = constraint
         self._repetition_penalty = RepetitionPenaltyFilter(sampling.repeat_penalty)
+        self._penalties = PresenceFrequencyPenalty(
+            sampling.presence_penalty, sampling.frequency_penalty
+        )
         self._temperature = TemperatureScaler(sampling.temperature)
         self._top_k = TopKFilter(sampling.top_k)
+        self._min_p = MinPFilter(sampling.min_p)
         self._top_p = TopPFilter(sampling.top_p)
+        # The native/Numba sampler covers the original four options only; the rest run here.
+        self._fused_ok = (
+            constraint is None
+            and sampling.min_p <= 0.0
+            and not (sampling.presence_penalty or sampling.frequency_penalty)
+        )
 
         self._generator = torch.Generator()
         if sampling.seed is not None:
@@ -94,7 +139,7 @@ class Sampler:
         stage_started = time.monotonic()
         logits = logits.to(torch.float32)
         ops = FusedOps.active()
-        if ops is not None and ops.can_sample(logits, self._sampling):
+        if self._fused_ok and ops is not None and ops.can_sample(logits, self._sampling):
             u = float(torch.rand((), generator=self._generator))
             token_id = ops.sample(logits, generated_ids, self._sampling, u)
             logger.debug(
@@ -104,6 +149,9 @@ class Sampler:
             )
             return token_id
         logits = self._repetition_penalty.apply(logits, generated_ids)
+        logits = self._penalties.apply(logits, generated_ids)
+        if self._constraint is not None:
+            return self._constrained(logits, stage_started)
 
         if self._temperature.is_greedy:
             token_id = int(torch.argmax(logits).item())
@@ -114,15 +162,51 @@ class Sampler:
             )
             return token_id
 
-        logits = self._temperature.apply(logits)
-        logits = self._top_k.apply(logits)
-        logits = self._top_p.apply(logits)
-
-        probabilities = torch.softmax(logits, dim=-1)
+        probabilities = torch.softmax(self._filtered(logits), dim=-1)
         sampled = torch.multinomial(probabilities, num_samples=1, generator=self._generator)
         token_id = int(sampled.item())
         logger.debug(
             "picking next word: temperature/top-k/top-p sample -> token %d in %.2fms",
+            token_id,
+            (time.monotonic() - stage_started) * 1000,
+        )
+        return token_id
+
+    def _filtered(self, logits: torch.Tensor) -> torch.Tensor:
+        logits = self._temperature.apply(logits)
+        logits = self._top_k.apply(logits)
+        logits = self._min_p.apply(logits)
+        return self._top_p.apply(logits)
+
+    def _constrained(self, logits: torch.Tensor, stage_started: float) -> int:
+        """Draws as usual but only keeps a token the constraint allows: a refused draw is removed
+        and drawn again. When the filters left no allowed token (or after CONSTRAINED_TRIES), the
+        most likely allowed token of the whole vocabulary wins."""
+        constraint = self._constraint
+        assert constraint is not None
+        token_id = -1
+        if not self._temperature.is_greedy:
+            probabilities = torch.softmax(self._filtered(logits), dim=-1)
+            for _ in range(self.CONSTRAINED_TRIES):
+                if not bool(torch.isfinite(probabilities).all()) or probabilities.sum() <= 0:
+                    break
+                drawn = int(torch.multinomial(probabilities, 1, generator=self._generator).item())
+                if constraint.allows(drawn):
+                    token_id = drawn
+                    break
+                probabilities[drawn] = 0.0
+        if token_id < 0:
+            token_id = next(
+                (
+                    int(i)
+                    for i in torch.argsort(logits, descending=True)
+                    if constraint.allows(int(i))
+                ),
+                int(torch.argmax(logits).item()),
+            )
+        constraint.accept(token_id)
+        logger.debug(
+            "picking next word: constrained -> token %d in %.2fms",
             token_id,
             (time.monotonic() - stage_started) * 1000,
         )

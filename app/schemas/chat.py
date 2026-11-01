@@ -1,4 +1,6 @@
-from pydantic import BaseModel, model_validator
+from typing import Literal
+
+from pydantic import BaseModel, Field, model_validator
 
 
 class ToolFunctionCall(BaseModel):
@@ -42,6 +44,11 @@ class ChatOptions(BaseModel):
     num_ctx: int = 2048
     num_predict: int = -1
     seed: int | None = None
+    min_p: float = Field(default=0.0, ge=0.0, le=1.0)
+    presence_penalty: float = Field(default=0.0, ge=-2.0, le=2.0)
+    frequency_penalty: float = Field(default=0.0, ge=-2.0, le=2.0)
+    # The reply ends before the first of these texts, which is not sent: stop_sequences.py.
+    stop: list[str] | None = Field(default=None, max_length=8)
 
 
 class ChatRequest(BaseModel):
@@ -69,6 +76,9 @@ class ChatRequest(BaseModel):
     # "vision" when pAIring asks for its default vision model (an image attachment): that model then
     # doesn't count toward max_loaded_models (app.models.load_limit). None: a normal chat model.
     model_role: str | None = None
+    # Structured output, Ollama's field: "json" for any JSON object, or a JSON Schema the reply must
+    # match (app.runtime.json_grammar). Turns thinking off.
+    format: Literal["json"] | dict | None = None
 
     def is_unload_call(self) -> bool:
         return not self.messages and self.keep_alive == 0
@@ -98,6 +108,8 @@ class ChatDoneChunk(BaseModel):
     load_duration: int | None = None
     prompt_eval_duration: int | None = None
     eval_duration: int | None = None
+    # "stop" (the model ended it, or a stop text) or "length" (num_predict or num_ctx ran out).
+    done_reason: str | None = None
 
     def to_ndjson_dict(self) -> dict:
         return self.model_dump(exclude_none=True)

@@ -1,5 +1,6 @@
 import asyncio
 import time
+import uuid
 from collections.abc import AsyncIterator
 
 import torch
@@ -13,9 +14,12 @@ from app.runtime.chat_engine import ChatEngine
 from app.runtime.generation_request import GenerationRequest, SamplingConfig
 from app.runtime.rerank_engine import ModelKind
 from app.runtime.special_token_filter import SpecialTokenTextFilter
+from app.runtime.stop_sequences import StopSequenceFilter
 from app.runtime.tokenizer import IncrementalTextDecoder
 from app.schemas.generate import GenerateChunk, GenerateDoneChunk, GenerateRequest
+from app.server.api_keys import require_api_key
 from app.server.errors import PromptTooLongError
+from app.server.metrics import Metrics
 from app.server.ndjson import NDJSONResponse
 from app.server.node_kind import require_compute
 
@@ -66,7 +70,13 @@ class GenerateRequestHandler:
 
         generation_request = self._build_generation_request(request, prompt_token_ids)
         return NDJSONResponse(
-            self._stream(handle, generation_request, len(prompt_token_ids), load_duration)
+            self._stream(
+                handle,
+                generation_request,
+                len(prompt_token_ids),
+                load_duration,
+                request.options.stop,
+            )
         )
 
     def _build_generation_request(
@@ -83,6 +93,9 @@ class GenerateRequestHandler:
                 num_ctx=options.num_ctx,
                 num_predict=options.num_predict,
                 seed=options.seed,
+                min_p=options.min_p,
+                presence_penalty=options.presence_penalty,
+                frequency_penalty=options.frequency_penalty,
             ),
         )
 
@@ -92,6 +105,7 @@ class GenerateRequestHandler:
         generation_request: GenerationRequest,
         prompt_eval_count: int,
         load_duration: float,
+        stop: list[str] | None = None,
     ) -> AsyncIterator[dict]:
         eos_token_ids = {handle.tokenizer.eos_token_id} | handle.extra_eos_token_ids
         engine = ChatEngine(
@@ -101,7 +115,15 @@ class GenerateRequestHandler:
         )
         decoder = IncrementalTextDecoder(handle.tokenizer)
         special_token_filter = SpecialTokenTextFilter()
-        results = handle.worker.stream(lambda: engine.stream_steps(generation_request))
+        # An id of its own, so a stop text can end this reply only.
+        request_id = f"generate-{uuid.uuid4().hex}"
+        stop_check = handle.worker.stop_check_for(request_id)
+        results = handle.worker.stream(
+            lambda: engine.stream_steps(generation_request, stop_check=stop_check),
+            request_id=request_id,
+        )
+        stops = StopSequenceFilter(stop)
+        ended_by_model = False
 
         eval_count = 0
         generation_started = time.monotonic()
@@ -111,24 +133,31 @@ class GenerateRequestHandler:
                 break
             if isinstance(item, Exception):
                 raise item
+            if stops.stopped:
+                continue
             eval_count += 1
             if item in eos_token_ids:
+                ended_by_model = True
                 continue
-            text = special_token_filter.feed(decoder.push(item))
+            text = stops.push(special_token_filter.feed(decoder.push(item)))
+            if stops.stopped:
+                handle.worker.cancel_job(request_id)
             if text:
                 yield GenerateChunk(response=text).to_ndjson_dict()
 
-        tail = special_token_filter.flush()
+        tail = stops.push(special_token_filter.flush()) + stops.finish()
         if tail:
             yield GenerateChunk(response=tail).to_ndjson_dict()
 
         eval_duration = time.monotonic() - generation_started
+        Metrics.shared().tokens(prompt_eval_count, eval_count)
         yield GenerateDoneChunk(
             prompt_eval_count=prompt_eval_count,
             eval_count=eval_count,
             load_duration=_seconds_to_ns(load_duration),
             eval_duration=_seconds_to_ns(eval_duration),
             total_duration=_seconds_to_ns(load_duration + eval_duration),
+            done_reason="stop" if ended_by_model or stops.stopped else "length",
         ).to_ndjson_dict()
 
 
@@ -136,7 +165,11 @@ def _seconds_to_ns(seconds: float) -> int:
     return int(seconds * 1_000_000_000)
 
 
-@router.post("/api/generate", dependencies=[Depends(require_compute)], response_model=None)
+@router.post(
+    "/api/generate",
+    dependencies=[Depends(require_compute), Depends(require_api_key)],
+    response_model=None,
+)
 async def post_generate(
     request: GenerateRequest, model_manager: ModelManager = Depends(get_model_manager)
 ) -> JSONResponse | NDJSONResponse:
