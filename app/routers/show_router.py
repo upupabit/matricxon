@@ -4,7 +4,8 @@ from app.config import settings
 from app.dependencies import get_model_catalog
 from app.models.capabilities import effective_capabilities
 from app.models.catalog import ModelCatalog
-from app.models.load_dtype import QUANTIZED_NATIVE_WIRED_ARCHITECTURES, estimate_ram_gb
+from app.models.load_dtype import QUANTIZED_NATIVE_WIRED_ARCHITECTURES
+from app.models.ram_estimate import estimate_ram_gb
 from app.schemas.show import ShowRequest, ShowResponse
 from app.schemas.tags import ModelDetails
 

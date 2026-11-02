@@ -217,7 +217,7 @@ def _has_confirmed_template(metadata: GGUFMetadata, tag: str = "") -> bool:
     )
 
 
-# Keyed by (path, mtime, size), like app.models.load_dtype.estimate_ram_gb's cache:
+# Keyed by (path, mtime, size), like app.models.ram_estimate.estimate_ram_gb's cache:
 # has_confirmed_chat_format parses this GGUF header on every GET /api/tags, and a file's metadata
 # never changes without the file.
 _confirmed_chat_format_cache: dict[tuple[str, int, int, str], bool] = {}

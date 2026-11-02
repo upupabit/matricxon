@@ -101,3 +101,8 @@ fi
 rm -f "$STARTING_FILE"
 
 info "matricxon started (pid $(cat "$PID_FILE")) on $HOST:$PORT, logging to $LOG_FILE"
+# A new node without an admin secret logs a join token (app/cluster/join_token.py): show it here.
+JOIN_TOKEN="$(tail -c +$((LOG_OFFSET + 1)) "$LOG_FILE" | grep -o 'use this join token: .*' | tail -n 1 | cut -d' ' -f5 || true)"
+if [[ -n "$JOIN_TOKEN" ]]; then
+    info "Join token for pAIring's Cluster > Add nodes form (only when adding from another machine): $JOIN_TOKEN"
+fi

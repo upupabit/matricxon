@@ -1,16 +1,19 @@
-"""estimate_ram_gb's per-file cache (app/models/load_dtype.py), added because GET /api/tags
+"""estimate_ram_gb's per-file cache (app/models/ram_estimate.py), added because GET /api/tags
 recomputed it (a GGUFReader parse) for every installed model on every request, making it
 intermittently slow under load (the cache's docstring has the story). Asserted via a GGUFReader.read
 call count, not estimated_ram_gb's values: a tiny fixture's rounded GB estimate is 0.0 whatever the
 layer count, so an output assertion would pass even with caching broken."""
 
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
 from app.gguf.reader import GGUFReader
-from app.models.load_dtype import estimate_ram_gb
+from app.models.ram_estimate import estimate_ram_gb
+from app.routers.tags_router import TagsRequestHandler
 from tests.tiny_gguf import build_tiny_mistral3_gguf
 
 
@@ -61,3 +64,21 @@ def test_a_file_replaced_at_the_same_path_invalidates_the_cache(tmp_path, read_c
     estimate_ram_gb(gguf_path)
 
     assert read_call_count["value"] == 2
+
+
+def test_parallel_first_calls_share_one_read(tmp_path, read_call_count):
+    gguf_path = build_tiny_mistral3_gguf(tmp_path / "model.gguf")
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda _: estimate_ram_gb(gguf_path), range(8)))
+
+    assert len(set(results)) == 1
+    assert read_call_count["value"] == 1
+
+
+def test_warm_up_fills_the_cache_in_the_background(monkeypatch) -> None:
+    handled = threading.Event()
+    monkeypatch.setattr(TagsRequestHandler, "handle", lambda _self: handled.set())
+
+    TagsRequestHandler(catalog=None).warm_up()
+
+    assert handled.wait(timeout=5)

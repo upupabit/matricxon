@@ -16,6 +16,7 @@ from app.dependencies import (
     get_cache_store,
     get_consensus_runtime,
     get_join_token,
+    get_model_catalog,
     get_model_manager,
     get_shared_settings,
     get_storage_paths,
@@ -51,6 +52,7 @@ from app.routers import (
     tags_router,
     version_router,
 )
+from app.routers.tags_router import TagsRequestHandler
 from app.runtime.compute_device import ComputeDevice
 from app.runtime.cpu_cores import CpuCores
 from app.server.errors import DeviceUnavailableError, ErrorHandlerRegistrar
@@ -140,6 +142,7 @@ class MatricxonApp:
         await asyncio.to_thread(get_cache_store)
         # A new node logs the token pAIring's Add nodes form asks for (cluster/join_token.py).
         await asyncio.to_thread(get_join_token().announce)
+        TagsRequestHandler(get_model_catalog()).warm_up()
         consensus = get_consensus_runtime()
         shared = get_shared_settings()
         if consensus is not None:

@@ -1,13 +1,11 @@
 import functools
 import re
 from collections.abc import Callable
-from pathlib import Path
 
 import torch
 
 from app.gguf.dequant.quantized_gemv_registry import has_gemv_kernel
 from app.gguf.dequant.registry import QuantStrategyRegistry
-from app.gguf.reader import GGUFReader
 from app.gguf.tensor_info import GGUFTensorInfo
 
 # Tensors with no "blk.N." prefix (token_embd, output_norm, untied output.weight): lets a caller
@@ -230,59 +228,6 @@ def estimate_quantized_native_bytes(
         else:
             total += t.n_elements * 2
     return total
-
-
-# Keyed by (path, mtime, size,...), not path, so a file replaced in place (a re-pull) invalidates
-# automatically; one os.stat is cheap next to the GGUFReader parse it avoids. Added because GET
-# /api/tags recomputes this per installed model on every request, which with several models
-# installed, under GIL contention from a chat/model-load, intermittently exceeded pAIring's request
-# timeout and surfaced as a bodyless "Service Unavailable" on an idle machine.
-_ram_estimate_cache: dict[tuple[str, int, int, bool, str], float] = {}
-
-
-def estimate_ram_gb(
-    gguf_path: str | Path,
-    quantized_native_enabled: bool = False,
-    architecture_name: str = "",
-) -> float:
-    """The RAM `gguf_path` needs to load: `estimate_quantized_native_bytes` of its tensor shapes in
-    GB (equal to `exact_bf16_bytes` unless `quantized_native_enabled`), from a cheap header-only
-    parse (GGUFReader.read).
-
-    It does not apply `Settings.memory_safety_margin` (unlike
-    `app.models.memory_guard.ensure_enough_memory_to_load`, the load-time gate): the padded figure
-    would read as "this architecture needs more RAM than it does", though the padding is this app's
-    load-time cushion.
-
-    Shared by `/api/show` (one tag) and `/api/tags` (every tag, `tags_router.py`), so "how much RAM
-    does Matricxon need" has one answer. pAIring had shown a generic on-disk-size estimate well
-    under the real need (a Ministral-3B Q4_K_M needs ~7.5GB, not ~3GB). `quantized_native_enabled`
-    is passed by the caller (show_router.py/tags_router.py) from the live setting, so the number
-    moves with the lower-RAM path.
-
-    Cached per file (`_ram_estimate_cache`): the parse is the expensive part and a file's shapes
-    don't change without the file.
-    """
-    path = Path(gguf_path)
-    stat = path.stat()
-    cache_key = (
-        str(path),
-        stat.st_mtime_ns,
-        stat.st_size,
-        quantized_native_enabled,
-        architecture_name,
-    )
-    cached = _ram_estimate_cache.get(cache_key)
-    if cached is not None:
-        return cached
-
-    tensor_infos = GGUFReader(path).read().tensor_infos
-    real_bytes = estimate_quantized_native_bytes(
-        tensor_infos, quantized_native_enabled, architecture_name
-    )
-    result = round(real_bytes / 1e9, 2)
-    _ram_estimate_cache[cache_key] = result
-    return result
 
 
 def group_bytes_by_layer(tensor_infos: list[GGUFTensorInfo]) -> dict[str, int]:
