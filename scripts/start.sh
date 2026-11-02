@@ -25,6 +25,7 @@ START_TIMEOUT="${START_TIMEOUT:-90}"
 START_WAIT=$(( ${START_TIMEOUT%.*} + 15 ))
 
 mkdir -p run logs
+LOG_OFFSET=0  # where this run's log lines start (0 when waiting for an earlier launch)
 
 # Rotate on start: keep MATRICXON_LOG_KEEP old logs once the file passes MATRICXON_LOG_MAX_MB.
 rotate_log() {
@@ -47,6 +48,7 @@ if [[ -f "$STARTING_FILE" ]] && kill -0 "$(cat "$STARTING_FILE")" 2>/dev/null; t
 else
     rm -f "$PID_FILE" "$STARTING_FILE"
     rotate_log
+    LOG_OFFSET="$(stat -c %s "$LOG_FILE" 2>/dev/null || stat -f %z "$LOG_FILE" 2>/dev/null || echo 0)"
 
     if (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
         err "port $PORT is already in use - is another matricxon running (e.g. pAIring's external/matricxon)?"
@@ -79,8 +81,20 @@ if [[ ! -f "$PID_FILE" ]]; then
         err "matricxon did not finish starting within ${START_WAIT}s (pid $SERVER_PID still running) - check $LOG_FILE"
     else
         rm -f "$STARTING_FILE"
-        err "matricxon exited during startup - last lines of $LOG_FILE:"
-        tail -n 5 "$LOG_FILE"
+        # Known startup problems log one "cannot start:" line each; else show the exception line.
+        run_log="$(tail -c +$((LOG_OFFSET + 1)) "$LOG_FILE" | tail -n 40)"
+        reasons="$(printf '%s\n' "$run_log" | grep -o 'matricxon cannot start: .*' | cut -d' ' -f4- || true)"
+        if [[ -n "$reasons" ]]; then
+            err "matricxon cannot start:"
+            while IFS= read -r line; do err "  $line"; done <<< "$reasons"
+            info "Details in $LOG_FILE"
+        else
+            reason="$(printf '%s\n' "$run_log" | grep -E '^[A-Za-z_][A-Za-z0-9_.]*(Error|Exception): ' | tail -n 1 \
+                | sed -E 's/^([A-Za-z0-9_]+\.)+//' || true)"
+            err "matricxon exited during startup${reason:+: $reason}"
+            info "Last lines of $LOG_FILE:"
+            tail -n 5 "$LOG_FILE"
+        fi
     fi
     exit 1
 fi

@@ -9,6 +9,7 @@ import torch
 from fastapi import FastAPI
 
 from app.architectures.triton_gemv import TritonGemv
+from app.cluster.storage_preflight import StoragePreflight
 from app.config import MATRICXON_VERSION, settings
 from app.consensus.events import ClusterEvents, enable_always_on
 from app.dependencies import (
@@ -17,6 +18,7 @@ from app.dependencies import (
     get_join_token,
     get_model_manager,
     get_shared_settings,
+    get_storage_paths,
 )
 from app.native.fused_ops import FusedOps
 from app.native.gemm import NativeGemm
@@ -172,6 +174,18 @@ class MatricxonApp:
                 "experimental GPU mode on %s (weights: %s)", device.name, settings.gpu_weight_mode
             )
 
+    @staticmethod
+    def require_storage() -> None:
+        """Exits with short log lines (no traceback) when a cluster node's shared folders or cache
+        key are missing, e.g. the NFS share is not mounted."""
+        problems = StoragePreflight(settings, get_storage_paths()).problems()
+        if not problems:
+            return
+        log = logging.getLogger(__name__)
+        for problem in problems:
+            log.critical("matricxon cannot start: %s", problem)
+        raise SystemExit(1)
+
     def build(self) -> FastAPI:
         app = FastAPI(
             title="Matricxon",
@@ -188,4 +202,5 @@ class MatricxonApp:
 
 _matricxon = MatricxonApp()
 _matricxon.require_device()
+_matricxon.require_storage()
 app = _matricxon.build()
