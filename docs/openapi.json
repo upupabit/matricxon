@@ -2801,6 +2801,109 @@
         "title": "ToolFunctionCall",
         "type": "object"
       },
+      "UpdateSourceRequest": {
+        "description": "A repository to update from instead of the checkout's upstream (admin secret needed).",
+        "properties": {
+          "branch": {
+            "default": "main",
+            "title": "Branch",
+            "type": "string"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "UpdateSourceRequest",
+        "type": "object"
+      },
+      "UpdateStatusResponse": {
+        "description": "A self-update of this node (app/update/self_update.py).",
+        "properties": {
+          "commit_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit After"
+          },
+          "commit_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Before"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          },
+          "total_steps": {
+            "title": "Total Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "step",
+          "total_steps",
+          "label"
+        ],
+        "title": "UpdateStatusResponse",
+        "type": "object"
+      },
       "Usage": {
         "properties": {
           "completion_tokens": {
@@ -2866,6 +2969,17 @@
       },
       "VersionResponse": {
         "properties": {
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
           "version": {
             "title": "Version",
             "type": "string"
@@ -2913,7 +3027,7 @@
   "info": {
     "description": "Matricxon's HTTP API: Ollama-style routes under /api, OpenAI-compatible routes under /v1, and Prometheus metrics at /metrics. Errors answer as `{\"error\": <message>, \"code\": <stable code>}` (OpenAI's error shape on /v1).",
     "title": "Matricxon",
-    "version": "2.0"
+    "version": "2.1"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -4142,6 +4256,68 @@
           }
         },
         "summary": "Get Tags"
+      }
+    },
+    "/api/update": {
+      "get": {
+        "operationId": "update_status_api_update_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Update Status"
+      },
+      "post": {
+        "description": "Updates THIS node from its own upstream, or from `body`'s repository, then restarts it. 409\nwhen it can't.",
+        "operationId": "start_update_api_update_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/UpdateSourceRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Update"
       }
     },
     "/api/version": {

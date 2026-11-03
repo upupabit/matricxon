@@ -23,6 +23,7 @@ from app.runtime.cache_policy import PersistencePolicy
 from app.runtime.cache_store import PersistentCacheStore
 from app.storage.node_identity import NodeIdentity
 from app.storage.paths import StoragePaths
+from app.update.self_update import SelfUpdater
 
 
 @lru_cache
@@ -166,3 +167,8 @@ def _restart_gracefully() -> None:
 def get_node_configurator() -> NodeConfigurator:
     paths = get_storage_paths()
     return NodeConfigurator(settings, paths, _env_file(), _restart_gracefully)
+
+
+@lru_cache
+def get_self_updater() -> SelfUpdater:
+    return SelfUpdater(_restart_gracefully, has_admin_secret=lambda: bool(settings.admin_secret))

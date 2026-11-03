@@ -50,6 +50,7 @@ from app.routers import (
     show_router,
     storage_router,
     tags_router,
+    update_router,
     version_router,
 )
 from app.routers.tags_router import TagsRequestHandler
@@ -98,6 +99,7 @@ class MatricxonApp:
         openai_chat_router.router,
         openai_models_router.router,
         metrics_router.router,
+        update_router.router,
     )
 
     def __init__(self) -> None:
