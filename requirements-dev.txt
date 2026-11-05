@@ -1,6 +1,6 @@
 -r requirements.txt
 pytest>=8.3
-pytest-asyncio>=0.24
+pytest-asyncio>=1.4.1.post1
 ruff>=0.7
 
 # M3/M8's HF-oracle cross-checks only (tools/oracle/) - never imported by app/
